@@ -22,7 +22,7 @@ function createWindow() {
       sandbox: false,
     },
     backgroundColor: '#0a0a0f',
-    icon: isDev ? path.join(__dirname, 'icon.png') : undefined,
+    icon: path.join(__dirname, isDev ? '../public/app-icon.ico' : '../dist/app-icon.ico'),
   })
 
   if (isDev) {
