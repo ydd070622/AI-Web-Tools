@@ -1,4 +1,4 @@
-import { Globe, Brush, Settings, Clock, Sun, Moon, ChevronLeft, ChevronRight, Wrench, Grid3X3, Layers, CreditCard, Wifi, User, ChevronDown } from 'lucide-react'
+import { Globe, Brush, Settings, Clock, Sun, Moon, ChevronLeft, ChevronRight, Wrench, Grid3X3, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact } from 'lucide-react'
 import type { NavItem } from '../types'
 
 interface SidebarProps {
@@ -15,14 +15,14 @@ interface SidebarProps {
 }
 
 const toolIcons: Record<string, React.ReactNode> = {
-  txt2img: <Brush size={16} />,
-  img2img: <Brush size={16} />,
-  history: <Clock size={16} />,
+  txt2img: <Sparkles size={16} color="#f59e0b" />,
+  img2img: <Images size={16} color="#8b5cf6" />,
+  history: <HistoryIcon size={16} color="#06b6d4" />,
 }
 
 const aggregatorIcons: Record<string, React.ReactNode> = {
-  platforms: <Grid3X3 size={16} />,
-  recharge: <CreditCard size={16} />,
+  platforms: <LayoutGrid size={16} color="#6366f1" />,
+  recharge: <Wallet size={16} color="#22c55e" />,
 }
 
 const favicons: Record<string, string> = {
@@ -37,7 +37,7 @@ const favicons: Record<string, string> = {
 
 const iconLabel: Record<string, string> = {
   liblib: 'Lib', runninghub: 'RH', tapnow: 'TN', chatgpt: 'CG', gemini: 'GE',
-  txt2img: '文', img2img: '图', history: '历',
+  txt2img: '文', img2img: '图', history: '史',
   platforms: '台', recharge: '充', accounts: '号',
   skyun: 'SK', mitce: 'MC',
 }
@@ -190,7 +190,7 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
 
         <div className="sidebar-section">
           <div className="sidebar-section-title clickable" onClick={() => onToggleSection('accounts')}>
-            <User size={14} /> 常用账号
+            <Contact size={14} /> 常用账号
             <ChevronDown size={12} className={`chevron ${collapsedSections.has('accounts') ? 'collapsed' : ''}`} />
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
             className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
             onClick={() => onSelect(item.id)}
           >
-            <span className="sidebar-item-icon"><User size={16} /></span>
+            <span className="sidebar-item-icon"><Contact size={16} color="#f97316" /></span>
             <span>{item.label}</span>
           </div>
         ))}
