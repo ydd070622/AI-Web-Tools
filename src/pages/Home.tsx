@@ -40,7 +40,7 @@ export default function Home() {
       wv.addEventListener('did-finish-load', () => {
         ;(wv as any).executeJavaScript(`
           (function(q){
-            var tries=0, max=30;
+            var tries=0, max=40;
             function fill(){
               tries++;
               var el = document.querySelector('textarea') || document.querySelector('[role="textbox"]') || document.querySelector('[contenteditable="true"]') || document.querySelector('input[type="text"]');
@@ -69,12 +69,12 @@ export default function Home() {
                   el.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
                   el.dispatchEvent(new KeyboardEvent('keypress', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
                   el.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
-                }, 600);
+                }, 200);
               } else if (tries < max) {
-                setTimeout(fill, 800);
+                setTimeout(fill, 400);
               }
             }
-            setTimeout(fill, 1500);
+            setTimeout(fill, 500);
           })(${JSON.stringify(q)})
         `)
       })
