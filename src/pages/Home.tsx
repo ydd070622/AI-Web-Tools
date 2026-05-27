@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, ChevronDown } from 'lucide-react'
+import { Search } from 'lucide-react'
 
 interface SearchEngine {
   id: string
@@ -17,13 +17,11 @@ const engines: SearchEngine[] = [
 
 type WebviewElement = HTMLElement & { src: string }
 
-export default function Home({ onNavigate }: { onNavigate: (id: string) => void }) {
+export default function Home() {
   const [query, setQuery] = useState('')
   const [engine, setEngine] = useState(engines[0])
-  const [showDropdown, setShowDropdown] = useState(false)
   const [searchUrl, setSearchUrl] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!searchUrl || !containerRef.current) return
@@ -40,16 +38,6 @@ export default function Home({ onNavigate }: { onNavigate: (id: string) => void 
     return () => wv.remove()
   }, [searchUrl])
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
   const handleSearch = () => {
     const q = query.trim()
     if (!q) return
@@ -61,11 +49,6 @@ export default function Home({ onNavigate }: { onNavigate: (id: string) => void 
   }
 
   const handleBack = () => setSearchUrl(null)
-
-  const selectEngine = (e: SearchEngine) => {
-    setEngine(e)
-    setShowDropdown(false)
-  }
 
   if (searchUrl) {
     return (
@@ -94,25 +77,20 @@ export default function Home({ onNavigate }: { onNavigate: (id: string) => void 
             onKeyDown={handleKeyDown}
           />
           <Search className="home-search-icon" size={18} onClick={handleSearch} />
-          <div className="home-engine-select" ref={dropdownRef}>
-            <div className="home-engine-current" onClick={() => setShowDropdown(!showDropdown)}>
-              {engine.name}
-              <ChevronDown size={12} />
-            </div>
-            {showDropdown && (
-              <div className="home-engine-dropdown">
-                {engines.map(e => (
-                  <div
-                    key={e.id}
-                    className={'home-engine-option' + (engine.id === e.id ? ' active' : '')}
-                    onClick={() => selectEngine(e)}
-                  >
-                    {e.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        </div>
+        <div className="home-engines">
+          {engines.map(e => (
+            <span
+              key={e.id}
+              className={'home-engine-btn' + (engine.id === e.id ? ' active' : '')}
+              onClick={() => setEngine(e)}
+            >
+              {e.name}
+            </span>
+          ))}
+        </div>
+        <div className="home-footer">
+          © 2026 YDD. All Rights Reserved.
         </div>
       </div>
     </div>
