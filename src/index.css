@@ -809,8 +809,57 @@ textarea.input-base {
 }
 .home-search-icon:hover { color: var(--text-primary); }
 
-.theme-light .home-search-box {
+.home-engine-select {
+  position: absolute; right: 48px; top: 50%; transform: translateY(-50%);
+  z-index: 10;
+}
+.home-engine-current {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 12px; border-radius: 6px;
+  font-size: 13px; color: var(--text-secondary);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer; white-space: nowrap;
+  transition: all .15s;
+}
+.home-engine-current:hover { background: rgba(255,255,255,0.1); }
+.home-engine-dropdown {
+  position: absolute; top: calc(100% + 4px); right: 0;
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 8px; overflow: hidden; min-width: 120px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.home-engine-option {
+  padding: 8px 16px; font-size: 13px; color: var(--text-secondary);
+  cursor: pointer; transition: background .1s;
+}
+.home-engine-option:hover { background: rgba(255,255,255,0.06); }
+.home-engine-option.active { color: var(--accent); background: rgba(99,102,241,0.1); }
+
+.theme-light .home-engine-current {
   background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08);
+}
+.theme-light .home-engine-current:hover { background: rgba(0,0,0,0.08); }
+.theme-light .home-engine-dropdown {
+  background: var(--bg-secondary); box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.theme-light .home-engine-option:hover { background: rgba(0,0,0,0.04); }
+
+.home-page-results {
+  height: 100%; display: flex; flex-direction: column;
+}
+.home-results-bar {
+  height: 36px; min-height: 36px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+.home-results-back {
+  font-size: 13px; color: var(--accent); cursor: pointer;
+}
+.home-results-back:hover { color: var(--accent-hover); }
+.home-results-engine {
+  font-size: 12px; color: var(--text-muted);
 }
 .theme-light .home-search-box:focus {
   background: rgba(0,0,0,0.06);
