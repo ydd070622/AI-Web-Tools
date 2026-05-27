@@ -89,7 +89,19 @@ ipcMain.handle('open-image-window', async (_e, url: string) => {
 app.whenReady().then(createWindow)
 
 app.on('web-contents-created', (_e, contents) => {
-  if (contents.getType() !== 'webview') return
+  const type = contents.getType()
+  if (type !== 'webview') {
+    if (type === 'window') {
+      contents.on('will-navigate', (_ev, url) => {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          mainWindow?.webContents.send('popup-navigate', { url })
+          const win = BrowserWindow.fromWebContents(contents)
+          if (win) win.close()
+        }
+      })
+    }
+    return
+  }
 
   contents.session.webRequest.onHeadersReceived(
     { urls: ['*://*/*'], types: ['mainFrame'] },
@@ -107,6 +119,9 @@ app.on('web-contents-created', (_e, contents) => {
   )
 
   contents.setWindowOpenHandler(({ url }) => {
+    if (url === 'about:blank') {
+      return { action: 'allow', overrideBrowserWindowOptions: { show: false } }
+    }
     if (url.startsWith('http://') || url.startsWith('https://')) {
       const sourceUrl = contents.getURL()
       let siteId = ''

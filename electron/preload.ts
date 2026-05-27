@@ -13,4 +13,9 @@ window.electronAPI = {
     ipcRenderer.on('new-tab', h)
     return () => { ipcRenderer.removeListener('new-tab', h) }
   },
+  onPopupNavigate: (cb: (data: { url: string }) => void) => {
+    const h = (_e: any, d: { url: string }) => cb(d)
+    ipcRenderer.on('popup-navigate', h)
+    return () => { ipcRenderer.removeListener('popup-navigate', h) }
+  },
 }

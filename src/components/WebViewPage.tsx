@@ -38,7 +38,12 @@ export default function WebViewPage({ site, visible }: WebViewPageProps) {
         setActiveId(newId)
       }
     })
-    return () => unsub?.()
+    const unsub2 = window.electronAPI?.onPopupNavigate((data) => {
+      const newId = `tab-${++tabCounter}-${Date.now()}`
+      setTabs(prev => [...prev, { id: newId, url: data.url, title: '加载中...' }])
+      setActiveId(newId)
+    })
+    return () => { unsub?.(); unsub2?.() }
   }, [site.id])
 
   const createWebview = useCallback((tabId: string, tabUrl: string) => {
@@ -56,6 +61,18 @@ export default function WebViewPage({ site, visible }: WebViewPageProps) {
       if (e.title) {
         setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title: e.title } : t))
       }
+    })
+
+    wv.addEventListener('did-finish-load', () => {
+      ;(wv as any).executeJavaScript(`
+        (function(){
+          function fix(){
+            document.querySelectorAll('a[target="_blank"]').forEach(function(a){ a.setAttribute('target','_self'); });
+          }
+          fix();
+          new MutationObserver(fix).observe(document.body,{childList:true,subtree:true});
+        })();
+      `)
     })
 
     return wv
