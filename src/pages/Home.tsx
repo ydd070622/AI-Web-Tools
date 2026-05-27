@@ -11,8 +11,8 @@ const engines: SearchEngine[] = [
   { id: 'baidu', name: '百度', buildUrl: q => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}` },
   { id: 'bing', name: '必应', buildUrl: q => `https://www.bing.com/search?q=${encodeURIComponent(q)}` },
   { id: 'google', name: 'Google', buildUrl: q => `https://www.google.com/search?q=${encodeURIComponent(q)}` },
-  { id: 'deepseek', name: 'DeepSeek', buildUrl: q => `https://chat.deepseek.com/a/chat/s/${encodeURIComponent(q)}` },
-  { id: 'kimi', name: 'Kimi', buildUrl: q => `https://kimi.moonshot.cn/?q=${encodeURIComponent(q)}` },
+  { id: 'deepseek', name: 'DeepSeek', buildUrl: () => 'https://chat.deepseek.com/' },
+  { id: 'kimi', name: 'Kimi', buildUrl: () => 'https://kimi.moonshot.cn/' },
 ]
 
 type WebviewElement = HTMLElement & { src: string }
