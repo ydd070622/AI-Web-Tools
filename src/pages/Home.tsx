@@ -58,17 +58,18 @@ export default function Home() {
                   el.dispatchEvent(new Event('change', { bubbles: true }));
                 }
                 setTimeout(function(){
-                  var btn = el.closest('form')?.querySelector('button[type="submit"]') || el.parentElement?.querySelector('button');
+                  var btn = el.closest('form')?.querySelector('button[type="submit"]');
                   if (!btn) {
-                    var allBtns = document.querySelectorAll('button');
-                    for (var i=0; i<allBtns.length; i++) {
-                      if (allBtns[i].offsetParent && (allBtns[i].innerText.includes('发送') || allBtns[i].innerText.includes('Send') || allBtns[i].getAttribute('aria-label')?.includes('send'))) {
-                        btn = allBtns[i]; break;
-                      }
+                    var all = el.parentElement?.querySelectorAll('button, [role="button"]') || [];
+                    for (var i=0; i<all.length; i++) {
+                      if (all[i].offsetParent && all[i] !== el) { btn = all[i]; break; }
                     }
                   }
-                  if (btn) { btn.click(); }
-                }, 500);
+                  if (btn) { btn.click(); return; }
+                  el.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
+                  el.dispatchEvent(new KeyboardEvent('keypress', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
+                  el.dispatchEvent(new KeyboardEvent('keyup', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
+                }, 600);
               } else if (tries < max) {
                 setTimeout(fill, 800);
               }
