@@ -130,7 +130,7 @@ export default function App() {
         )}
 
         <div className="content-area">
-          {activeId === 'home' && <Home />}
+          {activeId === 'home' && <Home onSelect={setActiveId} />}
           {websiteSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} />
           ))}

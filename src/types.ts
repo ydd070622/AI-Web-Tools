@@ -27,6 +27,10 @@ export interface GenerationResult {
   modelName: string
 }
 
+export type BookmarkItem =
+  | { id: string; name: string; type: 'folder'; children: BookmarkItem[] }
+  | { id: string; name: string; type: 'bookmark'; url: string; icon: string }
+
 declare global {
   interface Window {
     electronAPI?: {
