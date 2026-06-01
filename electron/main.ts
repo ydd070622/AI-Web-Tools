@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, shell, net } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell, net, nativeTheme } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -94,6 +94,12 @@ ipcMain.handle('open-external', async (_e, url: string) => {
   await shell.openExternal(url)
 })
 
+ipcMain.handle('set-theme-source', async (_e, source: string) => {
+  if (source === 'dark' || source === 'light' || source === 'system') {
+    nativeTheme.themeSource = source
+  }
+})
+
 function compareVersions(local: string, remote: string): boolean {
   const l = local.split('.').map(Number)
   const r = remote.split('.').map(Number)
@@ -131,6 +137,15 @@ async function checkForUpdates() {
 }
 
 app.whenReady().then(() => {
+  try {
+    const p = path.join(app.getPath('userData'), 'config.json')
+    if (fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
+      if (data.theme === 'dark' || data.theme === 'light') {
+        nativeTheme.themeSource = data.theme
+      }
+    }
+  } catch {}
   createWindow()
   checkForUpdates()
 })

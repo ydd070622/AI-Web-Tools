@@ -9,6 +9,7 @@ window.electronAPI = {
   saveImage: (dataUrl: string, defaultName: string) => ipcRenderer.invoke('save-image', dataUrl, defaultName),
   openImageWindow: (url: string) => ipcRenderer.invoke('open-image-window', url),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  setThemeSource: (source: string) => ipcRenderer.invoke('set-theme-source', source),
   onNewTab: (cb: (data: { url: string; siteId: string }) => void) => {
     const h = (_e: any, d: { url: string; siteId: string }) => cb(d)
     ipcRenderer.on('new-tab', h)

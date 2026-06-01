@@ -96,6 +96,7 @@ export default function App() {
     setTheme(next)
     if (window.electronAPI) {
       await window.electronAPI.setStore('theme', next)
+      await window.electronAPI.setThemeSource(next)
     } else {
       localStorage.setItem('theme', next)
     }
