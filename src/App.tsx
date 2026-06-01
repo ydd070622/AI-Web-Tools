@@ -40,6 +40,10 @@ export default function App() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [showSettings, setShowSettings] = useState(false)
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchEngineId, setSearchEngineId] = useState('baidu')
+  const [searchUrl, setSearchUrl] = useState<string | null>(null)
+
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {
       const next = new Set(prev)
@@ -131,7 +135,7 @@ export default function App() {
         )}
 
         <div className="content-area">
-          {activeId === 'home' && <Home onSelect={setActiveId} />}
+          {activeId === 'home' && <Home onSelect={setActiveId} searchQuery={searchQuery} searchEngineId={searchEngineId} searchUrl={searchUrl} onSetSearchQuery={setSearchQuery} onSetSearchEngine={setSearchEngineId} onSetSearchUrl={setSearchUrl} />}
           {websiteSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} />
           ))}

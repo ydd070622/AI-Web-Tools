@@ -22,13 +22,18 @@ type WebviewElement = HTMLElement & { src: string }
 
 interface HomeProps {
   onSelect?: (id: string) => void
+  searchQuery: string
+  searchEngineId: string
+  searchUrl: string | null
+  onSetSearchQuery: (q: string) => void
+  onSetSearchEngine: (id: string) => void
+  onSetSearchUrl: (url: string | null) => void
 }
 
-export default function Home({ onSelect }: HomeProps) {
+export default function Home({ onSelect, searchQuery, searchEngineId, searchUrl, onSetSearchQuery, onSetSearchEngine, onSetSearchUrl }: HomeProps) {
   // --- Search state ---
-  const [query, setQuery] = useState('')
-  const [engine, setEngine] = useState(engines[0])
-  const [searchUrl, setSearchUrl] = useState<string | null>(null)
+  const query = searchQuery
+  const engine = engines.find(e => e.id === searchEngineId) || engines[0]
   const containerRef = useRef<HTMLDivElement>(null)
   const searchWvRef = useRef<any>(null)
 
@@ -126,19 +131,19 @@ export default function Home({ onSelect }: HomeProps) {
     containerRef.current.appendChild(wv)
     searchWvRef.current = wv
     return () => { wv.remove(); searchWvRef.current = null }
-  }, [searchUrl, engine.ai, query])
+  }, [searchUrl, searchEngineId, searchQuery])
 
   const handleSearch = () => {
     const q = query.trim()
     if (!q) return
-    setSearchUrl(engine.buildUrl(q))
+    onSetSearchUrl(engine.buildUrl(q))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch()
   }
 
-  const handleBack = () => setSearchUrl(null)
+  const handleBack = () => onSetSearchUrl(null)
 
   const handleGoBack = () => {
     const wv = searchWvRef.current
@@ -357,7 +362,7 @@ export default function Home({ onSelect }: HomeProps) {
             type="text"
             placeholder="输入关键词搜索..."
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={e => onSetSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
           <Search className="home-search-icon" size={18} onClick={handleSearch} />
@@ -367,7 +372,7 @@ export default function Home({ onSelect }: HomeProps) {
             <span
               key={e.id}
               className={'home-engine-btn' + (engine.id === e.id ? ' active' : '')}
-              onClick={() => setEngine(e)}
+              onClick={() => onSetSearchEngine(e.id)}
             >
               {e.name}
             </span>
