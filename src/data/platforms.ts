@@ -3,6 +3,8 @@ export interface Platform {
   name: string
   url: string
   color: string
+  custom?: boolean
+  iconData?: string
 }
 
 export const platforms: Platform[] = [
