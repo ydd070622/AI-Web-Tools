@@ -400,7 +400,7 @@ export default function Prompts() {
 
       {/* AI Modal */}
       {showAi && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAi(false) }}>
+        <div className="modal-overlay">
           <div className="prompts-modal" style={{ width: 780, maxHeight: '90vh' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -452,7 +452,7 @@ export default function Prompts() {
                   <label className="label" style={{ marginBottom: 6, display: 'block' }}>描述你需要的 Prompt（用自然语言）</label>
                   <textarea
                     className="input-base"
-                    style={{ minHeight: 100, resize: 'vertical', lineHeight: 1.6 }}
+                    style={{ minHeight: 140, maxHeight: 200, resize: 'vertical', lineHeight: 1.6 }}
                     value={aiDesc}
                     onChange={e => setAiDesc(e.target.value)}
                     placeholder='例如：帮我写一个生成国风插画的 Prompt，要求水墨画风、仙鹤、云雾元素...'
@@ -465,7 +465,7 @@ export default function Prompts() {
                   <label className="label" style={{ marginBottom: 6, display: 'block' }}>粘贴需要优化的 Prompt</label>
                   <textarea
                     className="input-base"
-                    style={{ minHeight: 140, resize: 'vertical', lineHeight: 1.6, fontFamily: 'monospace', fontSize: 13 }}
+                    style={{ minHeight: 140, maxHeight: 200, resize: 'vertical', lineHeight: 1.6, fontFamily: 'monospace', fontSize: 13 }}
                     value={aiOptimizeInput}
                     onChange={e => setAiOptimizeInput(e.target.value)}
                     placeholder='粘贴你的原始 Prompt，AI 会帮你优化得更具体、更有条理...'
@@ -493,8 +493,11 @@ export default function Prompts() {
 
               {aiResult && (
                 <div className="prompts-ai-result">
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{aiMode === 'optimize' ? '优化结果：' : '生成结果：'}</div>
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13 }}>{aiResult}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{aiMode === 'optimize' ? '优化结果：' : '生成结果：'}</span>
+                    <button className="btn btn-ghost btn-sm" onClick={() => handleCopy(aiResult)}><Copy size={12} /> 复制</button>
+                  </div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13, maxHeight: 200, overflowY: 'auto' }}>{aiResult}</div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                     <button className="btn btn-ghost" onClick={handleAiGenerate} disabled={aiLoading}>重新处理</button>
                     <button className="btn btn-primary" onClick={handleAiSave}><Check size={13} /> 加入 Prompt 库</button>
