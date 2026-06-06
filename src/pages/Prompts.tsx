@@ -264,6 +264,19 @@ export default function Prompts() {
     input.click()
   }
 
+  const handleDeleteCategory = async (catId: string) => {
+    if (catId === '__all__') return
+    const count = prompts.filter(p => p.category === catId).length
+    if (count > 0 && !confirm(`该分类下有 ${count} 条 Prompt，删除后它们会移到「全部」。确定删除？`)) return
+    const next = categories.filter(c => c.id !== catId)
+    await saveCategories(next)
+    // Move prompts in deleted category to first available category
+    const targetCat = next.find(c => c.id !== '__all__')?.id || '__all__'
+    const updatedPrompts = prompts.map(p => p.category === catId ? { ...p, category: targetCat } : p)
+    await savePrompts(updatedPrompts)
+    if (activeCat === catId) setActiveCat('__all__')
+  }
+
   // Add category
   const handleAddCategory = () => {
     const name = prompt('输入新分类名称：')
@@ -287,7 +300,16 @@ export default function Prompts() {
             onClick={() => setActiveCat(c.id)}
           >
             <span>{c.icon} {c.label}</span>
-            <span className="prompts-cat-count">{getCount(c.id)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span className="prompts-cat-count">{getCount(c.id)}</span>
+              {c.id !== '__all__' && (
+                <span
+                  className="prompts-cat-del"
+                  onClick={e => { e.stopPropagation(); handleDeleteCategory(c.id) }}
+                  title="删除分类"
+                >×</span>
+              )}
+            </div>
           </div>
         ))}
         <div className="prompts-cat-add" onClick={handleAddCategory}>+ 新建分类</div>

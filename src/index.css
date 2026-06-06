@@ -472,7 +472,7 @@ textarea.input-base {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   display: block;
 }
 
@@ -1253,6 +1253,15 @@ textarea.input-base {
   text-align: center; transition: all .15s;
 }
 .prompts-cat-add:hover { background: rgba(99,102,241,0.06); }
+
+.prompts-cat-del {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: none; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--text-muted); cursor: pointer;
+  line-height: 1;
+}
+.prompts-cat-item:hover .prompts-cat-del { display: flex; }
+.prompts-cat-del:hover { background: rgba(239,68,68,0.08); color: #ef4444; }
 
 .prompts-toolbar {
   padding: 10px 16px; border-bottom: 1px solid var(--border-color);
