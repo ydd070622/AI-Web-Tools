@@ -385,7 +385,7 @@ export default function Prompts() {
 
       {/* Add / Edit Modal */}
       {showAdd && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAdd(false) }}>
+        <div className="modal-overlay">
           <div className="prompts-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: 15, fontWeight: 600 }}>{editId ? '编辑 Prompt' : '添加 Prompt'}</h3>
@@ -549,7 +549,7 @@ export default function Prompts() {
 
       {/* Category Manager */}
       {showCatManager && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCatManager(false) }}>
+        <div className="modal-overlay">
           <div className="prompts-modal" style={{ width: 400 }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: 15, fontWeight: 600 }}>分类管理</h3>
