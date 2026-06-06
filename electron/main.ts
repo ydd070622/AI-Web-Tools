@@ -18,6 +18,8 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    frame: false,
+    transparent: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true,
@@ -36,6 +38,9 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  mainWindow.on('maximize', () => mainWindow?.webContents.send('window-maximize-change', true))
+  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window-maximize-change', false))
 }
 
 ipcMain.handle('store-get', (_e, key: string) => {
@@ -123,6 +128,14 @@ ipcMain.handle('shell-open-path', async (_e, p: string) => {
 ipcMain.handle('shell-show-item', async (_e, p: string) => {
   shell.showItemInFolder(p)
 })
+
+ipcMain.handle('window-minimize', () => mainWindow?.minimize())
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow?.isMaximized()) { mainWindow?.unmaximize() }
+  else { mainWindow?.maximize() }
+})
+ipcMain.handle('window-close', () => mainWindow?.close())
+ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false)
 
 function compareVersions(local: string, remote: string): boolean {
   const l = local.split('.').map(Number)

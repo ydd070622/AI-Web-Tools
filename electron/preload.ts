@@ -16,6 +16,16 @@ window.electronAPI = {
   shellOpenPath: (p: string) => ipcRenderer.invoke('shell-open-path', p),
   shellShowItem: (p: string) => ipcRenderer.invoke('shell-show-item', p),
 
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window-maximize'),
+  closeWindow: () => ipcRenderer.invoke('window-close'),
+  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onMaximizeChange: (cb: (isMax: boolean) => void) => {
+    const h = (_e: any, isMax: boolean) => cb(isMax)
+    ipcRenderer.on('window-maximize-change', h)
+    return () => { ipcRenderer.removeListener('window-maximize-change', h) }
+  },
+
   onDownloadStarted: (cb: (data: any) => void) => {
     const h = (_e: any, d: any) => cb(d)
     ipcRenderer.on('download-started', h)

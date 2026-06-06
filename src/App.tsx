@@ -45,6 +45,7 @@ export default function App() {
   const [searchUrl, setSearchUrl] = useState<string | null>(null)
 
   const [downloads, setDownloads] = useState<DownloadItem[]>([])
+  const [isMaximized, setIsMaximized] = useState(false)
 
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {
@@ -96,6 +97,14 @@ export default function App() {
       }))
     }
     return () => unsubs.forEach(fn => fn())
+  }, [])
+
+  useEffect(() => {
+    const api = window.electronAPI
+    if (api) {
+      api.isMaximized().then(setIsMaximized)
+      return api.onMaximizeChange(setIsMaximized)
+    }
   }, [])
 
   const cancelDownload = useCallback(async (id: string) => {
@@ -163,7 +172,15 @@ export default function App() {
   const vpnSites = navItems.filter(i => i.type === 'vpn') as (NavItem & { type: 'vpn' })[]
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${isMaximized ? '' : ' app-rounded'}`}>
+      <div className="window-titlebar">
+        <span className="titlebar-label">AI Web Tools</span>
+        <span style={{ flex: 1 }} />
+        <div className="titlebar-btn" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</div>
+        <div className="titlebar-btn" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</div>
+        <div className="titlebar-btn titlebar-close" onClick={() => window.electronAPI?.closeWindow()} title="关闭">✕</div>
+      </div>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
           items={navItems}
           activeId={activeId}
@@ -183,12 +200,6 @@ export default function App() {
         />
 
       <div className="main-content">
-        {activeItem?.type === 'tool' && (
-          <div className="toolbar">
-            <span className="toolbar-title">{activeItem?.label}</span>
-          </div>
-        )}
-
         <div className="content-area">
           {activeId === 'home' && <Home onSelect={setActiveId} searchQuery={searchQuery} searchEngineId={searchEngineId} searchUrl={searchUrl} onSetSearchQuery={setSearchQuery} onSetSearchEngine={setSearchEngineId} onSetSearchUrl={setSearchUrl} />}
           {websiteSites.map(site => (
@@ -209,6 +220,7 @@ export default function App() {
       {showSettings && (
         <Settings models={models} onSave={saveModels} onClose={() => setShowSettings(false)} />
       )}
+      </div>
     </div>
   )
 }

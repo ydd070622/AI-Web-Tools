@@ -60,6 +60,11 @@ declare global {
       cancelDownload: (id: string) => Promise<void>
       shellOpenPath: (p: string) => Promise<void>
       shellShowItem: (p: string) => Promise<void>
+      minimizeWindow: () => Promise<void>
+      maximizeWindow: () => Promise<void>
+      closeWindow: () => Promise<void>
+      isMaximized: () => Promise<boolean>
+      onMaximizeChange: (cb: (isMax: boolean) => void) => () => void
       onNewTab: (cb: (data: { url: string; siteId: string }) => void) => () => void
       onPopupNavigate: (cb: (data: { url: string }) => void) => () => void
     }
