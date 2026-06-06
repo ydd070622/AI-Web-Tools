@@ -1248,11 +1248,17 @@ textarea.input-base {
 .prompts-cat-item.active { background: rgba(99,102,241,0.08); color: var(--accent); border-color: rgba(99,102,241,0.2); }
 .prompts-cat-count { font-size: 10px; color: var(--text-muted); }
 .prompts-cat-add {
-  margin-top: auto; padding: 6px; border-radius: 8px; font-size: 11px;
+  margin-top: auto; padding: 8px; border-radius: 8px; font-size: 13px;
   cursor: pointer; color: var(--accent); border: 1px dashed rgba(99,102,241,0.2);
   text-align: center; transition: all .15s;
 }
 .prompts-cat-add:hover { background: rgba(99,102,241,0.06); }
+.prompts-cat-manage {
+  padding: 8px; border-radius: 8px; font-size: 13px;
+  cursor: pointer; color: var(--text-secondary); border: 1px solid var(--border-color);
+  text-align: center; transition: all .15s; margin-top: 6px;
+}
+.prompts-cat-manage:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 
 .prompts-cat-del {
   width: 18px; height: 18px; border-radius: 4px;
