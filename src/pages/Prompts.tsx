@@ -38,6 +38,7 @@ export default function Prompts() {
   const [aiLoading, setAiLoading] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [tempApiKey, setTempApiKey] = useState('')
+  const [showApiForm, setShowApiForm] = useState(false)
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
 
@@ -198,6 +199,7 @@ export default function Prompts() {
   const handleSaveApiKey = async () => {
     if (!tempApiKey.trim()) return
     setApiKey(tempApiKey.trim())
+    setShowApiForm(false)
     if (window.electronAPI) {
       const models = await window.electronAPI.getStore('customModels')
       let list = Array.isArray(models) ? models : []
@@ -421,7 +423,7 @@ export default function Prompts() {
               <button className="btn btn-ghost btn-sm" onClick={() => setShowAi(false)}><X size={14} /></button>
             </div>
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {!apiKey && (
+              {(!apiKey || showApiForm) && (
                 <div className="prompts-api-setup">
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>🔑 配置 DeepSeek API Key</div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -434,16 +436,25 @@ export default function Prompts() {
                       style={{ flex: 1 }}
                     />
                     <button className="btn btn-primary" onClick={handleSaveApiKey} disabled={!tempApiKey.trim()}>保存</button>
+                    {apiKey && (
+                      <button className="btn btn-ghost" onClick={() => { setShowApiForm(false); setTempApiKey('') }}>取消</button>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                     获取 Key：<a href="https://platform.deepseek.com/api_keys" target="_blank" style={{ color: 'var(--accent)' }}>platform.deepseek.com</a>
                   </div>
                 </div>
               )}
+              {apiKey && !showApiForm && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', fontSize: 12 }}>
+                  <span>🔑 DeepSeek API 已配置 · <span style={{ color: 'var(--success)' }}>就绪</span></span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowApiForm(true)}>更换</button>
+                </div>
+              )}
               {apiKey && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', fontSize: 12 }}>
                   <span>🔑 DeepSeek API 已配置 · <span style={{ color: 'var(--success)' }}>就绪</span></span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { setApiKey(''); setTempApiKey('') }}>更换</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setApiKey('')}>更换</button>
                 </div>
               )}
 
