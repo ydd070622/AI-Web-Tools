@@ -20,6 +20,7 @@ export default function Prompts() {
   const [categories, setCategories] = useState(CATEGORIES)
   const [showAdd, setShowAdd] = useState(false)
   const [showAi, setShowAi] = useState(false)
+  const [showCatManager, setShowCatManager] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
 
   // Form state
@@ -300,19 +301,11 @@ export default function Prompts() {
             onClick={() => setActiveCat(c.id)}
           >
             <span>{c.icon} {c.label}</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <span className="prompts-cat-count">{getCount(c.id)}</span>
-              {c.id !== '__all__' && (
-                <span
-                  className="prompts-cat-del"
-                  onClick={e => { e.stopPropagation(); handleDeleteCategory(c.id) }}
-                  title="删除分类"
-                >×</span>
-              )}
-            </div>
+            <span className="prompts-cat-count">{getCount(c.id)}</span>
           </div>
         ))}
         <div className="prompts-cat-add" onClick={handleAddCategory}>+ 新建分类</div>
+        <div className="prompts-cat-manage" onClick={() => setShowCatManager(true)}>⚙ 管理分类</div>
       </div>
 
       {/* Main */}
@@ -386,7 +379,7 @@ export default function Prompts() {
               <h3 style={{ fontSize: 15, fontWeight: 600 }}>{editId ? '编辑 Prompt' : '添加 Prompt'}</h3>
               <button className="btn btn-ghost btn-sm" onClick={() => setShowAdd(false)}><X size={14} /></button>
             </div>
-            <div className="modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label className="label">标题</label>
@@ -537,6 +530,35 @@ export default function Prompts() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Manager */}
+      {showCatManager && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowCatManager(false) }}>
+          <div className="prompts-modal" style={{ width: 400 }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 600 }}>分类管理</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowCatManager(false)}><X size={14} /></button>
+            </div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 360, overflowY: 'auto' }}>
+              {categories.filter(c => c.id !== '__all__').map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: 13 }}>{c.icon} {c.label}</span>
+                  <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444' }} onClick={() => {
+                    handleDeleteCategory(c.id)
+                    if (categories.filter(x => x.id !== '__all__').length <= 1) setShowCatManager(false)
+                  }}>删除</button>
+                </div>
+              ))}
+              {categories.filter(c => c.id !== '__all__').length === 0 && (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20, fontSize: 13 }}>暂无自定义分类</div>
+              )}
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" onClick={() => { setShowCatManager(false) }}>完成</button>
             </div>
           </div>
         </div>
