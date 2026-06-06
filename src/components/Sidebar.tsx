@@ -47,6 +47,7 @@ const iconLabel: Record<string, React.ReactNode> = {
   txt2img: <Sparkles size={16} color="#f59e0b" />,
   img2img: <Images size={16} color="#8b5cf6" />,
   history: <HistoryIcon size={16} color="#06b6d4" />,
+  prompts: <Sparkles size={16} color="#a78bfa" />,
   platforms: <LayoutGrid size={16} color="#6366f1" />,
   recharge: <Wallet size={16} color="#22c55e" />,
   accounts: <Contact size={16} color="#f97316" />,

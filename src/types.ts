@@ -40,6 +40,17 @@ export interface DownloadItem {
   state: 'progress' | 'completed' | 'failed'
 }
 
+export interface PromptItem {
+  id: string
+  title: string
+  content: string
+  category: string
+  platform: string
+  tags: string[]
+  createdAt: number
+  fromAI: boolean
+}
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -63,6 +74,7 @@ declare global {
       minimizeWindow: () => Promise<void>
       maximizeWindow: () => Promise<void>
       closeWindow: () => Promise<void>
+      setWindowPosition: (x: number, y: number) => Promise<void>
       isMaximized: () => Promise<boolean>
       onMaximizeChange: (cb: (isMax: boolean) => void) => () => void
       onNewTab: (cb: (data: { url: string; siteId: string }) => void) => () => void

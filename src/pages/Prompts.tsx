@@ -1,0 +1,428 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Search, Copy, Pencil, Trash2, Upload, Download, Sparkles, Check, X } from 'lucide-react'
+import type { PromptItem } from '../types'
+
+const CATEGORIES = [
+  { id: '__all__', label: '全部', icon: '📂' },
+  { id: '生图提示词', label: '生图提示词', icon: '🎨' },
+  { id: 'AI对话', label: 'AI对话', icon: '💬' },
+  { id: '文案创作', label: '文案创作', icon: '📝' },
+  { id: '自动化流程', label: '自动化流程', icon: '⚙️' },
+]
+
+const STORE_KEY = 'prompts'
+
+export default function Prompts() {
+  const [prompts, setPrompts] = useState<PromptItem[]>([])
+  const [activeCat, setActiveCat] = useState('__all__')
+  const [search, setSearch] = useState('')
+  const [toast, setToast] = useState('')
+  const [categories, setCategories] = useState(CATEGORIES)
+  const [showAdd, setShowAdd] = useState(false)
+  const [showAi, setShowAi] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+
+  // Form state
+  const [formTitle, setFormTitle] = useState('')
+  const [formContent, setFormContent] = useState('')
+  const [formCategory, setFormCategory] = useState('生图提示词')
+  const [formPlatform, setFormPlatform] = useState('')
+  const [formTags, setFormTags] = useState('')
+
+  // AI state
+  const [aiDesc, setAiDesc] = useState('')
+  const [aiCategory, setAiCategory] = useState('生图提示词')
+  const [aiResult, setAiResult] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(''), 1500)
+  }
+
+  const loadPrompts = useCallback(async () => {
+    if (window.electronAPI) {
+      const saved = await window.electronAPI.getStore(STORE_KEY)
+      if (Array.isArray(saved)) setPrompts(saved)
+    } else {
+      const raw = localStorage.getItem(STORE_KEY)
+      if (raw) { try { setPrompts(JSON.parse(raw)) } catch {} }
+    }
+  }, [])
+
+  const loadCategories = useCallback(async () => {
+    if (window.electronAPI) {
+      const saved = await window.electronAPI.getStore('promptCategories')
+      if (Array.isArray(saved) && saved.length > 0) setCategories(saved)
+    }
+  }, [])
+
+  const loadApiKey = useCallback(async () => {
+    if (window.electronAPI) {
+      const models = await window.electronAPI.getStore('customModels')
+      if (Array.isArray(models)) {
+        const ds = models.find((m: any) => m.name && m.name.toLowerCase().includes('deepseek'))
+        if (ds?.apiKey) setApiKey(ds.apiKey)
+      }
+    }
+  }, [])
+
+  useEffect(() => { loadPrompts(); loadCategories(); loadApiKey() }, [loadPrompts, loadCategories, loadApiKey])
+
+  const savePrompts = async (list: PromptItem[]) => {
+    setPrompts(list)
+    if (window.electronAPI) {
+      await window.electronAPI.setStore(STORE_KEY, list)
+    } else {
+      localStorage.setItem(STORE_KEY, JSON.stringify(list))
+    }
+  }
+
+  const saveCategories = async (cats: typeof CATEGORIES) => {
+    setCategories(cats)
+    if (window.electronAPI) {
+      await window.electronAPI.setStore('promptCategories', cats)
+    }
+  }
+
+  // Filter
+  const filtered = prompts.filter(p => {
+    if (activeCat !== '__all__' && p.category !== activeCat) return false
+    if (search) {
+      const s = search.toLowerCase()
+      return p.title.toLowerCase().includes(s) || p.content.toLowerCase().includes(s) || p.tags.some(t => t.toLowerCase().includes(s))
+    }
+    return true
+  })
+
+  // Counts
+  const getCount = (catId: string) => {
+    if (catId === '__all__') return prompts.length
+    return prompts.filter(p => p.category === catId).length
+  }
+
+  // CRUD
+  const handleCopy = (content: string) => {
+    navigator.clipboard.writeText(content).then(() => showToast('已复制到剪贴板')).catch(() => {})
+  }
+
+  const openAdd = () => {
+    setEditId(null)
+    setFormTitle('')
+    setFormContent('')
+    setFormCategory('生图提示词')
+    setFormPlatform('')
+    setFormTags('')
+    setShowAdd(true)
+  }
+
+  const openEdit = (p: PromptItem) => {
+    setEditId(p.id)
+    setFormTitle(p.title)
+    setFormContent(p.content)
+    setFormCategory(p.category)
+    setFormPlatform(p.platform)
+    setFormTags(p.tags.join(', '))
+    setShowAdd(true)
+  }
+
+  const handleSave = async () => {
+    if (!formTitle.trim() || !formContent.trim()) return
+    const item: PromptItem = {
+      id: editId || `p-${Date.now()}`,
+      title: formTitle.trim(),
+      content: formContent,
+      category: formCategory,
+      platform: formPlatform.trim(),
+      tags: formTags.split(',').map(t => t.trim()).filter(Boolean),
+      createdAt: editId ? prompts.find(p => p.id === editId)?.createdAt || Date.now() : Date.now(),
+      fromAI: editId ? prompts.find(p => p.id === editId)?.fromAI || false : false,
+    }
+    const next = editId
+      ? prompts.map(p => p.id === editId ? item : p)
+      : [item, ...prompts]
+    await savePrompts(next)
+    setShowAdd(false)
+  }
+
+  const handleDelete = async (id: string) => {
+    await savePrompts(prompts.filter(p => p.id !== id))
+  }
+
+  // AI Generate
+  const handleAiGenerate = async () => {
+    if (!aiDesc.trim()) return
+    if (!apiKey) {
+      showToast('请先在设置 → API 中配置 DeepSeek 模型和 API Key')
+      return
+    }
+    setAiLoading(true)
+    setAiResult('')
+
+    const messages = [
+      { role: 'system', content: '你是一个 Prompt 工程专家。用户会描述他想要什么类型的提示词，你直接输出优化后的 Prompt 模板，不要加任何解释。使用 {变量名} 表示可替换的地方。' },
+      { role: 'user', content: aiDesc.trim() },
+    ]
+
+    try {
+      const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'deepseek-chat', messages, max_tokens: 2048, temperature: 0.7 }),
+      })
+      const data = await res.json()
+      if (data.choices?.[0]?.message?.content) {
+        setAiResult(data.choices[0].message.content)
+      } else {
+        setAiResult('生成失败：' + (data.error?.message || '未知错误'))
+      }
+    } catch (e: any) {
+      setAiResult('请求失败：' + (e.message || '网络错误'))
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleAiSave = async () => {
+    if (!aiResult.trim()) return
+    const title = aiDesc.trim().slice(0, 30) + (aiDesc.trim().length > 30 ? '...' : '')
+    const item: PromptItem = {
+      id: `p-${Date.now()}`,
+      title,
+      content: aiResult.trim(),
+      category: aiCategory,
+      platform: 'DeepSeek',
+      tags: ['AI生成', aiCategory],
+      createdAt: Date.now(),
+      fromAI: true,
+    }
+    await savePrompts([item, ...prompts])
+    setShowAi(false)
+    setAiDesc('')
+    setAiResult('')
+    showToast('已保存到 Prompt 库')
+  }
+
+  // Import / Export
+  const handleExport = () => {
+    const json = JSON.stringify(prompts, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'prompts.json'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'; input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const text = await file.text()
+      try {
+        const data = JSON.parse(text)
+        if (Array.isArray(data)) {
+          await savePrompts(data)
+          showToast(`导入了 ${data.length} 条 Prompt`)
+        }
+      } catch {
+        showToast('导入失败：文件格式不正确')
+      }
+    }
+    input.click()
+  }
+
+  // Add category
+  const handleAddCategory = () => {
+    const name = prompt('输入新分类名称：')
+    if (!name?.trim()) return
+    if (categories.find(c => c.id === name.trim())) {
+      showToast('分类已存在')
+      return
+    }
+    const newCat = { id: name.trim(), label: name.trim(), icon: '📌' }
+    saveCategories([...categories, newCat])
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* Categories */}
+      <div className="prompts-sidebar">
+        {categories.map(c => (
+          <div
+            key={c.id}
+            className={`prompts-cat-item${activeCat === c.id ? ' active' : ''}`}
+            onClick={() => setActiveCat(c.id)}
+          >
+            <span>{c.icon} {c.label}</span>
+            <span className="prompts-cat-count">{getCount(c.id)}</span>
+          </div>
+        ))}
+        <div className="prompts-cat-add" onClick={handleAddCategory}>+ 新建分类</div>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Toolbar */}
+        <div className="prompts-toolbar">
+          <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
+            <input
+              className="input-base"
+              style={{ paddingLeft: 32 }}
+              placeholder="搜索 Prompt..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            <Search size={14} style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost" onClick={handleImport}><Upload size={13} /> 导入</button>
+            <button className="btn btn-ghost" onClick={handleExport}><Download size={13} /> 导出</button>
+            <button className="btn btn-accent" onClick={() => setShowAi(true)}><Sparkles size={13} /> AI 生成</button>
+            <button className="btn btn-primary" onClick={openAdd}>+ 手动添加</button>
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="prompts-list">
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+              {search || activeCat !== '__all__' ? '没有匹配的 Prompt' : '暂无 Prompt，点击上方按钮添加'}
+            </div>
+          ) : (
+            filtered.map(p => (
+              <div key={p.id} className="prompts-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{p.title}</div>
+                    <span className="prompts-card-platform">{p.platform || '通用'}</span>
+                    {p.fromAI && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>🤖 AI</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    <button className="prompts-card-btn" onClick={() => handleCopy(p.content)} title="复制">
+                      <Copy size={13} />
+                    </button>
+                    <button className="prompts-card-btn" onClick={() => openEdit(p)} title="编辑">
+                      <Pencil size={13} />
+                    </button>
+                    <button className="prompts-card-btn prompts-card-btn-del" onClick={() => handleDelete(p.id)} title="删除">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+                <div className="prompts-card-preview">{p.content}</div>
+                {p.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {p.tags.map(t => (
+                      <span key={t} className="prompts-tag">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Add / Edit Modal */}
+      {showAdd && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAdd(false) }}>
+          <div className="prompts-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 600 }}>{editId ? '编辑 Prompt' : '添加 Prompt'}</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAdd(false)}><X size={14} /></button>
+            </div>
+            <div className="modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label className="label">标题</label>
+                  <input className="input-base" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Prompt 标题" />
+                </div>
+                <div style={{ width: 150 }}>
+                  <label className="label">分类</label>
+                  <select className="input-base select-base" value={formCategory} onChange={e => setFormCategory(e.target.value)}>
+                    {categories.filter(c => c.id !== '__all__').map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="label">适用平台</label>
+                <input className="input-base" value={formPlatform} onChange={e => setFormPlatform(e.target.value)} placeholder="如 DeepSeek / ChatGPT / SDXL" />
+              </div>
+              <div>
+                <label className="label">Prompt 内容 <span className="variable-hint">可用 {'{变量名}'} 做占位符</span></label>
+                <textarea className="input-base" style={{ minHeight: 180, resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.6, fontSize: 13 }} value={formContent} onChange={e => setFormContent(e.target.value)} placeholder="粘贴 Prompt 内容..." />
+              </div>
+              <div>
+                <label className="label">标签（逗号分隔）</label>
+                <input className="input-base" value={formTags} onChange={e => setFormTags(e.target.value)} placeholder="如 人像, 写实, SDXL" />
+              </div>
+            </div>
+            <div className="modal-footer" style={{ padding: '14px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setShowAdd(false)}>取消</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={!formTitle.trim() || !formContent.trim()}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Generate Modal */}
+      {showAi && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAi(false) }}>
+          <div className="prompts-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 600 }}>🤖 AI 生成 Prompt</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAi(false)}><X size={14} /></button>
+            </div>
+            <div className="modal-body" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {!apiKey && (
+                <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 12, border: '1px solid rgba(239,68,68,0.2)' }}>
+                  未配置 DeepSeek API Key，请先去 设置 → API 中添加 DeepSeek 模型并填入 Key
+                </div>
+              )}
+              <div>
+                <label className="label">描述你需要的 Prompt（用自然语言）</label>
+                <textarea className="input-base" style={{ minHeight: 80, resize: 'vertical', lineHeight: 1.6 }} value={aiDesc} onChange={e => setAiDesc(e.target.value)} placeholder='例如：帮我写一个生成国风插画的 Prompt，要求水墨画风、仙鹤、云雾元素...' />
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ width: 150 }}>
+                  <label className="label">分类到</label>
+                  <select className="input-base select-base" value={aiCategory} onChange={e => setAiCategory(e.target.value)}>
+                    {categories.filter(c => c.id !== '__all__').map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button className="btn btn-primary" onClick={handleAiGenerate} disabled={!aiDesc.trim() || aiLoading}>
+                    {aiLoading ? '生成中...' : <>✨ 让 AI 生成</>}
+                  </button>
+                </div>
+              </div>
+              {aiResult && (
+                <div className="prompts-ai-result">
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>生成结果：</div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: 13 }}>{aiResult}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                    <button className="btn btn-ghost" onClick={handleAiGenerate} disabled={aiLoading}>重新生成</button>
+                    <button className="btn btn-primary" onClick={handleAiSave}><Check size={13} /> 加入 Prompt 库</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <div className="toast success">{toast}</div>}
+    </div>
+  )
+}

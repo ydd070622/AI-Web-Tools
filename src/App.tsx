@@ -9,6 +9,7 @@ import Recharge from './pages/Recharge'
 import Settings from './pages/Settings'
 import Accounts from './pages/Accounts'
 import Home from './pages/Home'
+import Prompts from './pages/Prompts'
 import type { NavItem, CustomModel, DownloadItem } from './types'
 
 const defaultModels: CustomModel[] = [
@@ -25,6 +26,7 @@ const navItems: NavItem[] = [
   { type: 'tool', id: 'txt2img', label: '文生图', icon: 'tool' },
   { type: 'tool', id: 'img2img', label: '图生图', icon: 'tool' },
   { type: 'tool', id: 'history', label: '生成历史', icon: 'tool' },
+  { type: 'tool', id: 'prompts', label: 'Prompt 管理', icon: 'tool' },
   { type: 'aggregator', id: 'platforms', label: '开放平台', icon: 'tool' },
   { type: 'aggregator', id: 'recharge', label: '充值平台', icon: 'tool' },
   { type: 'account', id: 'accounts', label: '常用账号', icon: 'tool' },
@@ -231,6 +233,7 @@ export default function App() {
           {activeId === 'txt2img' && <TextToImage models={models} />}
           {activeId === 'img2img' && <ImageToImage models={models} />}
           {activeId === 'history' && <History />}
+          {activeId === 'prompts' && <Prompts />}
           {activeId === 'platforms' && <Platforms />}
           {activeId === 'recharge' && <Recharge />}
           {activeId === 'accounts' && <Accounts />}
