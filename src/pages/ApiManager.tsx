@@ -180,10 +180,10 @@ export default function ApiManager() {
         </div>
 
         <div className="api-config-section">
-          <h4>📊 使用方式</h4>
+          <h4>🚀 本地代理服务</h4>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            本地代理端点：<code style={{ background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 4 }}>http://127.0.0.1:19384/v1</code><br />
-            API Key 留空即可，模型名用上方列表中已启用的名称。
+            端点：<code style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4 }}>http://127.0.0.1:19384/v1</code> <span style={{ color: 'var(--success)', fontSize: 11 }}>● 运行中</span><br />
+            在其他 AI 客户端（Cherry Studio、ChatBox 等）中填入此地址 + 任意 Key 即可使用已配置的所有模型。
           </div>
         </div>
       </div>
