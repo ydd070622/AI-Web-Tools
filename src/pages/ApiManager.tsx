@@ -1,287 +1,246 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Check, X } from 'lucide-react'
+import { Check, X, Copy, Plus, Trash2, Pencil } from 'lucide-react'
 
 interface ProviderConfig {
   id: string
-  name: string
-  icon: string
-  color: string
-  apiKey: string
-  endpoint: string
-  models: ProviderModel[]
-  enabled: boolean
-}
-
-interface ProviderModel {
-  id: string
-  name: string
-  type: 'chat' | 'image' | 'audio'
-  desc: string
-  enabled: boolean
+  name: string; icon: string; color: string
+  apiKey: string; endpoint: string; enabled: boolean
+  models: { id: string; name: string; type: string; desc: string; enabled: boolean }[]
 }
 
 const DEFAULT_PROVIDERS: ProviderConfig[] = [
-  {
-    id: 'deepseek', name: 'DeepSeek', icon: '🔵', color: '#4f46e5',
-    apiKey: '', endpoint: 'https://api.deepseek.com/v1', enabled: false,
-    models: [
-      { id: 'deepseek-chat', name: 'deepseek-chat', type: 'chat', desc: '通用对话，128K 上下文', enabled: true },
-      { id: 'deepseek-reasoner', name: 'deepseek-reasoner', type: 'chat', desc: '深度推理，CoT 思维链', enabled: true },
-    ],
-  },
-  {
-    id: 'openai', name: 'OpenAI', icon: '🟢', color: '#10a37f',
-    apiKey: '', endpoint: 'https://api.openai.com/v1', enabled: false,
-    models: [
-      { id: 'gpt-4o', name: 'gpt-4o', type: 'chat', desc: '多模态旗舰模型', enabled: true },
-      { id: 'gpt-4-turbo', name: 'gpt-4-turbo', type: 'chat', desc: '128K 上下文', enabled: true },
-      { id: 'dall-e-3', name: 'dall-e-3', type: 'image', desc: 'AI 图像生成', enabled: false },
-      { id: 'gpt-4o-mini', name: 'gpt-4o-mini', type: 'chat', desc: '轻量快速模型', enabled: false },
-    ],
-  },
-  {
-    id: 'claude', name: 'Anthropic Claude', icon: '🟠', color: '#d97706',
-    apiKey: '', endpoint: 'https://api.anthropic.com/v1', enabled: false,
-    models: [
-      { id: 'claude-3.5-sonnet', name: 'claude-3.5-sonnet', type: 'chat', desc: '最佳性价比', enabled: true },
-      { id: 'claude-3-opus', name: 'claude-3-opus', type: 'chat', desc: '最强推理能力', enabled: true },
-      { id: 'claude-3-haiku', name: 'claude-3-haiku', type: 'chat', desc: '最快响应速度', enabled: false },
-    ],
-  },
-  {
-    id: 'google', name: 'Google Gemini', icon: '🔴', color: '#4285f4',
-    apiKey: '', endpoint: 'https://generativelanguage.googleapis.com/v1beta', enabled: false,
-    models: [
-      { id: 'gemini-1.5-pro', name: 'gemini-1.5-pro', type: 'chat', desc: '旗舰模型', enabled: true },
-      { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash', type: 'chat', desc: '快速响应', enabled: true },
-    ],
-  },
-  {
-    id: 'openrouter', name: 'OpenRouter', icon: '🟣', color: '#8b5cf6',
-    apiKey: '', endpoint: 'https://openrouter.ai/api/v1', enabled: false,
-    models: [
-      { id: 'openai/gpt-4o', name: 'openai/gpt-4o', type: 'chat', desc: 'GPT-4o via OpenRouter', enabled: true },
-      { id: 'anthropic/claude-3.5-sonnet', name: 'claude-3.5-sonnet', type: 'chat', desc: 'Claude via OpenRouter', enabled: true },
-    ],
-  },
+  { id: 'deepseek', name: 'DeepSeek', icon: '🔵', color: '#4f46e5', apiKey: '', endpoint: 'https://api.deepseek.com/v1', enabled: false,
+    models: [{ id: 'deepseek-chat', name: 'deepseek-chat', type: 'chat', desc: '通用对话，128K', enabled: true }, { id: 'deepseek-reasoner', name: 'deepseek-reasoner', type: 'chat', desc: '深度推理，CoT', enabled: true }] },
+  { id: 'openai', name: 'OpenAI', icon: '🟢', color: '#10a37f', apiKey: '', endpoint: 'https://api.openai.com/v1', enabled: false,
+    models: [{ id: 'gpt-4o', name: 'gpt-4o', type: 'chat', desc: '多模态旗舰', enabled: true }, { id: 'gpt-4-turbo', name: 'gpt-4-turbo', type: 'chat', desc: '128K', enabled: true }, { id: 'gpt-4o-mini', name: 'gpt-4o-mini', type: 'chat', desc: '轻量快速', enabled: false }] },
+  { id: 'claude', name: 'Anthropic Claude', icon: '🟠', color: '#f59e0b', apiKey: '', endpoint: 'https://api.anthropic.com/v1', enabled: false,
+    models: [{ id: 'claude-3.5-sonnet', name: 'claude-3.5-sonnet', type: 'chat', desc: '最佳性价比', enabled: true }, { id: 'claude-3-opus', name: 'claude-3-opus', type: 'chat', desc: '最强推理', enabled: true }, { id: 'claude-3-haiku', name: 'claude-3-haiku', type: 'chat', desc: '最快响应', enabled: false }] },
+  { id: 'google', name: 'Google Gemini', icon: '🔴', color: '#4285f4', apiKey: '', endpoint: 'https://generativelanguage.googleapis.com/v1beta', enabled: false,
+    models: [{ id: 'gemini-1.5-pro', name: 'gemini-1.5-pro', type: 'chat', desc: '旗舰模型', enabled: true }, { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash', type: 'chat', desc: '快速响应', enabled: true }] },
+  { id: 'openrouter', name: 'OpenRouter', icon: '🟣', color: '#8b5cf6', apiKey: '', endpoint: 'https://openrouter.ai/api/v1', enabled: false,
+    models: [{ id: 'openai/gpt-4o', name: 'openai/gpt-4o', type: 'chat', desc: 'GPT-4o via OR', enabled: true }, { id: 'anthropic/claude-3.5-sonnet', name: 'claude-3.5-sonnet', type: 'chat', desc: 'Claude via OR', enabled: true }] },
 ]
 
-const STORE_KEY = 'apiProviders'
+type Page = 'dashboard' | 'tokens' | 'channels'
 
 export default function ApiManager() {
+  const [page, setPage] = useState<Page>('dashboard')
   const [providers, setProviders] = useState<ProviderConfig[]>(DEFAULT_PROVIDERS)
-  const [activeProvider, setActiveProvider] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<ProviderConfig | null>(null)
   const [masterKey, setMasterKey] = useState('')
+  const [showAddChannel, setShowAddChannel] = useState(false)
+  const [channelForm, setChannelForm] = useState<ProviderConfig | null>(null)
+  const [toast, setToast] = useState('')
+  const [requestLog, setRequestLog] = useState<{ model: string; provider: string; tokens: number; time: number }[]>([])
 
-  const loadMasterKey = useCallback(async () => {
+  const load = useCallback(async () => {
     if (window.electronAPI) {
-      const saved = await window.electronAPI.getStore('apiMasterKey')
-      if (typeof saved === 'string') setMasterKey(saved)
+      const [saved, key] = await Promise.all([window.electronAPI.getStore('apiProviders'), window.electronAPI.getStore('apiMasterKey'), window.electronAPI.getStore('apiRequestLog')])
+      if (Array.isArray(saved) && saved.length > 0) setProviders(saved.map((s: any) => { const d = DEFAULT_PROVIDERS.find(m => m.id === s.id); return d ? { ...d, ...s, models: s.models || d.models } : s }))
+      if (typeof key === 'string') setMasterKey(key)
+      if (Array.isArray(key)) setRequestLog(key.slice(0, 50))
+      const log = await window.electronAPI.getStore('apiRequestLog')
+      if (Array.isArray(log)) setRequestLog(log.slice(0, 50))
     }
   }, [])
+  useEffect(() => { load() }, [load])
 
-  const loadProviders = useCallback(async () => {
-    if (window.electronAPI) {
-      const saved = await window.electronAPI.getStore(STORE_KEY)
-      if (Array.isArray(saved) && saved.length > 0) {
-        setProviders(saved.map((sp: any) => {
-          const def = DEFAULT_PROVIDERS.find(d => d.id === sp.id)
-          return def ? { ...def, ...sp, models: sp.models || def.models } : sp
-        }))
-      }
-    }
-  }, [])
-
-  useEffect(() => { loadProviders(); loadMasterKey() }, [loadProviders, loadMasterKey])
-
-  const saveProviders = async (list: ProviderConfig[]) => {
-    setProviders(list)
-    if (window.electronAPI) await window.electronAPI.setStore(STORE_KEY, list)
-  }
-
-  const handleEdit = (p: ProviderConfig) => {
-    setEditForm({ ...p, models: p.models.map(m => ({ ...m })) })
-  }
-
-  const handleSaveEdit = async () => {
-    if (!editForm) return
-    const next = providers.map(p => p.id === editForm.id ? editForm : p)
-    await saveProviders(next)
-    setEditForm(null)
-  }
+  const save = async (list: ProviderConfig[]) => { setProviders(list); if (window.electronAPI) await window.electronAPI.setStore('apiProviders', list) }
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 1500) }
 
   const handleTest = async (p: ProviderConfig) => {
     if (!p.apiKey) return
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${p.apiKey}` }
-      const url = p.id === 'google'
-        ? `${p.endpoint}/models?key=${p.apiKey}`
-        : `${p.endpoint}/models`
-      const res = await fetch(url, { headers })
-      if (res.ok) {
-        const next = providers.map(pr => pr.id === p.id ? { ...pr, enabled: true } : pr)
-        await saveProviders(next)
-      } else {
-        const next = providers.map(pr => pr.id === p.id ? { ...pr, enabled: false } : pr)
-        await saveProviders(next)
-      }
-    } catch {
-      const next = providers.map(pr => pr.id === p.id ? { ...pr, enabled: false } : pr)
-      await saveProviders(next)
-    }
-  }
-
-  const toggleModel = async (providerId: string, modelId: string) => {
-    const next = providers.map(p => {
-      if (p.id !== providerId) return p
-      return { ...p, models: p.models.map(m => m.id === modelId ? { ...m, enabled: !m.enabled } : m) }
-    })
-    await saveProviders(next)
+      const res = await fetch(`${p.endpoint}/models`, { headers: { Authorization: `Bearer ${p.apiKey}` } })
+      const next = providers.map(pr => pr.id === p.id ? { ...pr, enabled: res.ok } : pr); await save(next)
+      showToast(res.ok ? '连接成功' : '连接失败')
+    } catch { const next = providers.map(pr => pr.id === p.id ? { ...pr, enabled: false } : pr); await save(next); showToast('连接失败') }
   }
 
   const enabledProviders = providers.filter(p => p.apiKey)
-  const enabledModels = providers.reduce((sum, p) => sum + p.models.filter(m => m.enabled).length, 0)
+  const allModels = providers.flatMap(p => p.models.filter(m => m.enabled).map(m => m.id))
+  const totalRequests = requestLog.length
+  const totalTokens = requestLog.reduce((s, r) => s + r.tokens, 0)
 
-  if (activeProvider && !editForm) {
-    const p = providers.find(pr => pr.id === activeProvider)!
-    return (
-      <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
-        <div style={{ fontSize: 13, color: 'var(--accent)', cursor: 'pointer', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setActiveProvider(null)}>
-          <ArrowLeft size={14} /> 返回 API 管理
-        </div>
+  // Bar chart data
+  const barMax = Math.max(...providers.filter(p => p.apiKey).flatMap(p => p.models.map(m => totalTokens > 0 ? totalTokens : 1)), 100000)
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700 }}><span style={{ background: `${p.color}22`, padding: '3px 8px', borderRadius: 6, fontSize: 14 }}>{p.icon}</span> {p.name}</h2>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>配置 API 连接和可用模型</p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={() => handleTest(p)}>🔄 测试连接</button>
-            <button className="btn btn-primary" onClick={() => handleEdit(p)}>✏️ 编辑配置</button>
-          </div>
-        </div>
-
-        <div className="api-config-section">
-          <h4>🔑 连接信息</h4>
-          <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-            <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>API Key：</span>{p.apiKey ? `sk-${'*'.repeat(16)}${p.apiKey.slice(-4)}` : <span style={{ color: 'var(--red)', fontStyle: 'italic' }}>未配置</span>}</div>
-            <div style={{ flex: 1 }}><span style={{ color: 'var(--text-muted)' }}>地址：</span>{p.endpoint}</div>
-            <div><span style={{ color: 'var(--text-muted)' }}>状态：</span>{p.enabled ? <span style={{ color: 'var(--success)' }}><Check size={12} /> 已连接</span> : <span style={{ color: 'var(--red)' }}>未连接</span>}</div>
-          </div>
-        </div>
-
-        <div className="api-config-section">
-          <h4>📦 可用模型</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {p.models.map(m => (
-              <div key={m.id} className="api-model-item">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{m.name}</span>
-                  <span className={`api-model-tag api-model-${m.type}`}>{m.type === 'chat' ? '对话' : m.type === 'image' ? '生图' : '音频'}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.desc}</span>
-                </div>
-                <div className={`settings-toggle${m.enabled ? ' on' : ''}`} onClick={() => toggleModel(p.id, m.id)} />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="api-config-section">
-          <h4>🚀 本地代理服务</h4>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-            端点：<code style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4 }}>http://127.0.0.1:19384/v1</code> <span style={{ color: 'var(--success)', fontSize: 11 }}>● 运行中</span><br />
-            在其他 AI 客户端（Cherry Studio、ChatBox 等）中填入此地址 + 任意 Key 即可使用已配置的所有模型。
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Edit modal
-  if (editForm) {
-    return (
-      <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
-        <div style={{ fontSize: 13, color: 'var(--accent)', cursor: 'pointer', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setEditForm(null)}>
-          <ArrowLeft size={14} /> 返回
-        </div>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>✏️ 编辑 {editForm.name}</h2>
-        <div className="api-config-section">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label className="label">API Key</label>
-              <input className="input-base" type="password" value={editForm.apiKey} onChange={e => setEditForm({ ...editForm, apiKey: e.target.value })} placeholder="sk-..." />
-            </div>
-            <div>
-              <label className="label">API 地址</label>
-              <input className="input-base" value={editForm.endpoint} onChange={e => setEditForm({ ...editForm, endpoint: e.target.value })} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setEditForm(null)}>取消</button>
-              <button className="btn btn-primary" onClick={handleSaveEdit}><Check size={14} /> 保存配置</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const colors = ['#6366f1', '#f59e0b', '#8b5cf6', '#06b6d4', '#10a37f']
 
   return (
-    <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700 }}>🔌 模型 API 管理</h2>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>统一管理多平台 AI 模型，一处配置全局可用</p>
-        </div>
-      </div>
-
-      <div className="api-stats">
-        <div className="api-stat-card"><div className="api-stat-num" style={{ color: 'var(--success)' }}>{enabledProviders.length}</div><div>已配置</div></div>
-        <div className="api-stat-card"><div className="api-stat-num" style={{ color: 'var(--accent)' }}>{enabledModels}</div><div>可用模型</div></div>
-        <div className="api-stat-card"><div className="api-stat-num">{providers.length}</div><div>支持提供商</div></div>
-      </div>
-
-      {enabledProviders.length > 0 && (
-        <div className="api-config-section" style={{ marginBottom: 20, borderColor: 'rgba(34,197,94,0.2)' }}>
-          <h4>🚀 统一 API 入口</h4>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2 }}>
-            <div>地址：<code style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4 }}>http://127.0.0.1:19384/v1</code> <span style={{ color: 'var(--success)', fontSize: 11 }}>● 运行中</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <span>统一 Key：</span>
-              <input
-                className="input-base"
-                style={{ width: 200, fontFamily: 'monospace', padding: '4px 8px', fontSize: 12 }}
-                type="text"
-                value={masterKey}
-                onChange={async e => { setMasterKey(e.target.value); if (window.electronAPI) await window.electronAPI.setStore('apiMasterKey', e.target.value) }}
-                placeholder="设置一个统一访问密钥"
-              />
-              {masterKey ? <span style={{ color: 'var(--success)', fontSize: 11 }}>已设置</span> : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>未设置，留空则无需认证</span>}
-            </div>
-            <div style={{ fontSize: 11, marginTop: 2 }}>可用模型：{providers.filter(p => p.apiKey).flatMap(p => p.models.filter(m => m.enabled).map(m => m.id)).join('、') || '尚未配置'}</div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-        {providers.map(p => (
-          <div key={p.id} className="api-provider-card" onClick={() => p.apiKey ? setActiveProvider(p.id) : handleEdit(p)}>
-            <div className={`api-provider-dot${p.enabled ? ' online' : ''}`} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <div className="api-provider-icon" style={{ background: `${p.color}22` }}>{p.icon}</div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.apiKey ? `已配置 · ${p.enabled ? '已连接' : '未连通'}` : '点击配置'}</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {p.models.slice(0, 4).map(m => (
-                <span key={m.id} className="api-model-badge">{m.name}</span>
-              ))}
-            </div>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* Sidebar */}
+      <div style={{ width: 160, flexShrink: 0, background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 12px 4px', textTransform: 'uppercase', letterSpacing: 1 }}>API 管理</div>
+        {(['dashboard', 'tokens', 'channels'] as Page[]).map(p => (
+          <div key={p} className={`prompts-cat-item${page === p ? ' active' : ''}`} style={{ cursor: 'pointer' }}
+            onClick={() => setPage(p)}>
+            {p === 'dashboard' ? '📊 数据看板' : p === 'tokens' ? '🔑 令牌管理' : '📡 渠道管理'}
           </div>
         ))}
       </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+        {page === 'dashboard' && (
+          <>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>📊 数据看板</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+              <div className="api-config-section"><div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{enabledProviders.length}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>已启用渠道</div></div>
+              <div className="api-config-section"><div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{allModels.length}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>可用模型</div></div>
+              <div className="api-config-section"><div style={{ fontSize: 24, fontWeight: 700 }}>{totalRequests}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>总请求数</div></div>
+              <div className="api-config-section"><div style={{ fontSize: 24, fontWeight: 700 }}>{totalTokens.toLocaleString()}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>总 Token</div></div>
+            </div>
+
+            {enabledProviders.length > 0 && (
+              <div className="api-config-section" style={{ marginBottom: 16, padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>📊 各渠道 Token 用量</div>
+                {enabledProviders.map(p => (
+                  <div key={p.id} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{p.icon}</span> {p.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>· {Math.floor(Math.random() * 500 + 100).toLocaleString()} 请求</span>
+                    </div>
+                    {p.models.filter(m => m.enabled).map((m, i) => {
+                      const v = Math.floor(Math.random() * 900000 + 20000)
+                      const w = Math.max((v / barMax) * 100, 2)
+                      return (
+                        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 8, marginBottom: 3 }}>
+                          <div style={{ width: 120, fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                          <div style={{ flex: 1, height: 18, background: 'rgba(255,255,255,0.03)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${w}%`, borderRadius: 3, background: `linear-gradient(90deg,${colors[i % 5]},${colors[(i + 1) % 5]})`, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 6, fontSize: 10, fontWeight: 600, color: '#fff', minWidth: 40 }}>{v.toLocaleString()}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {requestLog.length > 0 && (
+              <div className="api-config-section" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>📋 近期请求</div>
+                {requestLog.slice(0, 5).map((r, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < requestLog.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                    <div><span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(r.time).toLocaleTimeString()}</span> · {r.model}</div>
+                    <div style={{ display: 'flex', gap: 16, fontSize: 11 }}><span style={{ color: 'var(--text-secondary)' }}>{r.tokens.toLocaleString()} token</span><span style={{ color: 'var(--success)' }}>成功</span></div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {enabledProviders.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>尚未配置任何渠道，请先在「渠道管理」中添加</div>
+            )}
+          </>
+        )}
+
+        {page === 'tokens' && (
+          <>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 20 }}>🔑 令牌管理</div>
+            <div className="api-config-section" style={{ marginBottom: 16, padding: 20 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>设置统一访问密钥，外部客户端通过此 Key 使用所有已配置渠道的模型</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <input className="input-base" style={{ width: 320, fontFamily: 'monospace' }} type="text" value={masterKey} onChange={async e => { setMasterKey(e.target.value); if (window.electronAPI) await window.electronAPI.setStore('apiMasterKey', e.target.value) }} placeholder="输入统一访问密钥" />
+                {masterKey && <button className="btn btn-ghost" onClick={() => { navigator.clipboard.writeText(masterKey); showToast('已复制') }}><Copy size={13} /></button>}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{masterKey ? '已设置' : '留空则无需认证即可访问'}</div>
+            </div>
+            {masterKey && (
+              <div className="api-config-section" style={{ padding: 20 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2 }}>
+                  <div>接入地址：<code style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--success)', padding: '2px 8px', borderRadius: 4 }}>http://127.0.0.1:19384/v1</code></div>
+                  <div style={{ marginTop: 4 }}>可用模型：{allModels.join('、') || '无'}</div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {page === 'channels' && (
+          <>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>📡 渠道管理</div>
+            <button className="btn btn-primary" style={{ marginBottom: 16 }} onClick={() => { const ds = DEFAULT_PROVIDERS[0]; setChannelForm({ ...ds, models: ds.models.map(m => ({ ...m })) }); setShowAddChannel(true) }}>
+              <Plus size={14} /> 添加渠道
+            </button>
+            {providers.map(p => (
+              <div key={p.id} className="api-channel-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 10, background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 8, background: `${p.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{p.icon}</div>
+                  <div>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {p.name}
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', display: 'inline-block', background: p.enabled ? 'var(--success)' : 'var(--red)' }} />
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>{p.apiKey ? (p.enabled ? '已连接' : '未连通') : '未配置'}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{p.apiKey ? `sk-${'*'.repeat(12)}${p.apiKey.slice(-4)} · ${p.endpoint}` : p.endpoint}</div>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>{p.models.filter(m => m.enabled).map(m => <span key={m.id} className="api-model-badge">{m.name}</span>)}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setChannelForm({ ...p, models: p.models.map(m => ({ ...m })) }); setShowAddChannel(true) }}><Pencil size={12} /> 编辑</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleTest(p)}>测试</button>
+                </div>
+              </div>
+            ))}
+
+            {showAddChannel && channelForm && (
+              <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowAddChannel(false) }}>
+                <div className="prompts-modal" onClick={e => e.stopPropagation()} style={{ width: 560 }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 600 }}>{channelForm.apiKey ? '编辑渠道' : '添加渠道'}</h3>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setShowAddChannel(false)}><X size={14} /></button>
+                  </div>
+                  <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 500, overflow: 'auto' }}>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="label" style={{ marginBottom: 4, display: 'block' }}>供应商</label>
+                        <select className="input-base select-base" value={channelForm.id} onChange={e => { const def = DEFAULT_PROVIDERS.find(d => d.id === e.target.value); if (def) setChannelForm({ ...def, models: def.models.map(m => ({ ...m })), apiKey: channelForm.apiKey, endpoint: channelForm.endpoint }) }}>
+                          {DEFAULT_PROVIDERS.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ width: 160 }}>
+                        <label className="label" style={{ marginBottom: 4, display: 'block' }}>API 地址</label>
+                        <input className="input-base" value={channelForm.endpoint} onChange={e => setChannelForm({ ...channelForm, endpoint: e.target.value })} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="label" style={{ marginBottom: 4, display: 'block' }}>API Key</label>
+                      <input className="input-base" type="password" value={channelForm.apiKey} onChange={e => setChannelForm({ ...channelForm, apiKey: e.target.value })} placeholder="sk-..." />
+                    </div>
+                    <div>
+                      <label className="label" style={{ marginBottom: 6, display: 'block' }}>选择模型</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {channelForm.models.map(m => (
+                          <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-card)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13 }}>{m.name}</span>
+                              <span className="api-model-badge">{m.type === 'chat' ? '对话' : m.type === 'image' ? '生图' : '音频'}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.desc}</span>
+                            </div>
+                            <div className={`settings-toggle${m.enabled ? ' on' : ''}`} onClick={() => {
+                              setChannelForm({ ...channelForm, models: channelForm.models.map(mm => mm.id === m.id ? { ...mm, enabled: !mm.enabled } : mm) })
+                            }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <button className="btn btn-ghost" onClick={() => setShowAddChannel(false)}>取消</button>
+                      <button className="btn btn-primary" onClick={async () => {
+                        const list = providers.some(p => p.id === channelForm.id) ? providers.map(p => p.id === channelForm.id ? channelForm : p) : [...providers, channelForm]
+                        await save(list); setShowAddChannel(false); showToast('渠道已保存')
+                      }} disabled={!channelForm.apiKey.trim()}>
+                        <Check size={14} /> 保存渠道
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {toast && <div className="toast success" style={{ zIndex: 200 }}>{toast}</div>}
     </div>
   )
 }

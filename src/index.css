@@ -1289,6 +1289,8 @@ textarea.input-base {
 .api-model-image { background: rgba(245,158,11,0.12); color: #f59e0b; }
 .api-model-audio { background: rgba(34,197,94,0.12); color: var(--success); }
 
+.api-channel-card:hover { border-color: rgba(255,255,255,0.15); }
+
 .prompts-cat-del {
   width: 18px; height: 18px; border-radius: 4px;
   display: none; align-items: center; justify-content: center;
