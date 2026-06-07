@@ -70,21 +70,25 @@ export default function Dashboard() {
       const res = await fetch('https://platform.deepseek.com/api/v1/usage/summary', {
         headers: { Authorization: `Bearer ${platformToken}` }
       })
-      if (!res.ok) throw new Error('查询失败')
-      const data = await res.json()
-      const models: UsageModel[] = (data.models || []).map((m: any) => ({
-        key: (m.model || '').toLowerCase().includes('pro') ? 'pro' : 'flash',
-        name: m.model || '', totalTokens: (m.total_tokens || 0),
-        requestCount: m.request_count || 0, cost: m.cost || 0,
-        cacheHitTokens: m.cache_hit_tokens || 0, cacheMissTokens: m.cache_miss_tokens || 0,
-        responseTokens: m.completion_tokens || 0,
-      }))
-      const days: UsageDay[] = (data.days || data.daily || []).map((d: any) => ({
-        date: d.date || d.day, flashTokens: d.flash_tokens || 0, proTokens: d.pro_tokens || 0,
-        totalTokens: (d.total_tokens || 0), totalCost: d.total_cost || d.cost || 0,
-      }))
-      setUsage({ models, days, monthCost: data.month_cost || data.total_cost || 0 })
-      setUsageState('ok')
+      if (res.status === 200) {
+        const data = await res.json()
+        const models: UsageModel[] = (data.models || []).map((m: any) => ({
+          key: (m.model || '').toLowerCase().includes('pro') ? 'pro' : 'flash',
+          name: m.model || '', totalTokens: (m.total_tokens || 0),
+          requestCount: m.request_count || 0, cost: m.cost || 0,
+          cacheHitTokens: m.cache_hit_tokens || 0, cacheMissTokens: m.cache_miss_tokens || 0,
+          responseTokens: m.completion_tokens || 0,
+        }))
+        const days: UsageDay[] = (data.days || data.daily || []).map((d: any) => ({
+          date: d.date || d.day, flashTokens: d.flash_tokens || 0, proTokens: d.pro_tokens || 0,
+          totalTokens: (d.total_tokens || 0), totalCost: d.total_cost || d.cost || 0,
+        }))
+        setUsage({ models, days, monthCost: data.month_cost || data.total_cost || 0 })
+        setUsageState('ok')
+      } else {
+        // Platform API not accessible, show as error
+        setUsageState('error')
+      }
     } catch { setUsageState('error') }
   }, [platformToken])
 
@@ -298,8 +302,17 @@ export default function Dashboard() {
             })}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
-            {usageState === 'nokey' ? '未配置 API Key' : usageState === 'loading' ? '查询中…' : usageState === 'error' ? '查询失败' : '暂无数据'}
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>
+            {usageState === 'nokey' ? '点击设置 → 网页登录获取用量 Token' :
+             usageState === 'loading' ? '查询中…' :
+             usageState === 'error' ? (
+               <div>
+                 <div style={{ marginBottom: 8 }}>平台用量 API 不可用，请在网页中查看</div>
+                 <button className="btn btn-ghost btn-sm" onClick={() => {
+                   if (window.electronAPI) window.electronAPI.openExternal('https://platform.deepseek.com/usage')
+                 }}>打开 DeepSeek 平台</button>
+               </div>
+             ) : '暂无数据'}
           </div>
         )}
       </div>
