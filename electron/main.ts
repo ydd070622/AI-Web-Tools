@@ -10,28 +10,50 @@ ipcMain.handle('ds-login', async () => {
   return new Promise<string | null>((resolve) => {
     const loginWin = new BrowserWindow({
       width: 800, height: 700,
-      title: 'DeepSeek 登录',
+      title: 'DeepSeek 登录 - 登录后自动关闭',
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     })
 
     let resolved = false
-    const checkToken = () => {
+    let attempts = 0
+    const maxAttempts = 30
+
+    const tryExtract = () => {
       if (resolved) return
-      loginWin.webContents.executeJavaScript('JSON.parse(localStorage.userToken || "{}").value || null')
-        .then((token: string | null) => {
-          if (token) {
-            resolved = true
-            loginWin.close()
-            resolve(token)
-          }
-        }).catch(() => {})
+      attempts++
+      loginWin.webContents.executeJavaScript(`
+        (function(){
+          try {
+            var raw = localStorage.userToken;
+            if (raw) { var obj = JSON.parse(raw); return obj.value || null; }
+            return null;
+          } catch(e) { return null; }
+        })()
+      `).then((token: string | null) => {
+        if (token) {
+          resolved = true
+          loginWin.close()
+          resolve(token)
+        } else if (attempts < maxAttempts && !resolved) {
+          setTimeout(tryExtract, 2000)
+        }
+      }).catch(() => {
+        if (attempts < maxAttempts && !resolved) setTimeout(tryExtract, 2000)
+      })
     }
 
-    loginWin.webContents.on('did-navigate', checkToken)
-    loginWin.webContents.on('did-finish-load', () => setTimeout(checkToken, 2000))
-    loginWin.on('closed', () => { if (!resolved) resolve(null) })
+    loginWin.webContents.on('did-finish-load', () => {
+      setTimeout(tryExtract, 3000)
+    })
 
-    loginWin.loadURL('https://platform.deepseek.com')
+    loginWin.webContents.on('did-navigate', (_e: any, url: string) => {
+      if (url.includes('platform.deepseek.com') && !resolved) {
+        setTimeout(tryExtract, 2000)
+      }
+    })
+
+    loginWin.on('closed', () => { if (!resolved) resolve(null) })
+    loginWin.loadURL('https://platform.deepseek.com/usage')
   })
 })
 
