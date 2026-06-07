@@ -270,7 +270,7 @@ export default function Dashboard() {
                 {recentDays.map((d, i) => (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{d.totalTokens > 0 ? fmtShort(d.totalTokens) : ''}</span>
-                    <div style={{ width: '100%', height: `${Math.max(6, (d.totalTokens / maxDailyToken) * 80)}px`, background: i === recentDays.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.1))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '100%', height: `${Math.max(2, (d.totalTokens / maxDailyToken) * 100)}%`, background: i === recentDays.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.1))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
                     <span style={{ fontSize: 8, color: i === recentDays.length - 1 ? '#22c55e' : 'var(--text-muted)' }}>{mmdd(d.date)}</span>
                   </div>
                 ))}
@@ -315,7 +315,7 @@ export default function Dashboard() {
                 {history.map((h, i) => (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{fmtMoney(h.cost)}</span>
-                    <div style={{ width: '100%', height: `${Math.max(6, (h.cost / histMaxCost) * 100)}px`, background: i === history.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.15))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '100%', height: `${Math.max(2, (h.cost / histMaxCost) * 100)}%`, background: i === history.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.15))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
                     <span style={{ fontSize: 9, color: i === history.length - 1 ? 'var(--green)' : 'var(--text-muted)' }}>{h.month.slice(5)}月</span>
                   </div>
                 ))}
