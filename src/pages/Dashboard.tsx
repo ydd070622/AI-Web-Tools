@@ -237,8 +237,16 @@ export default function Dashboard() {
           <div className="api-config-section" style={{ padding: 18 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <BarChart3 size={14} color="var(--accent)" /> 本月 Token 消耗趋势
+              {!platformToken && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>（需配置用量 Token）</span>}
+              {platformToken && loading && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, animation: 'spin 1s infinite linear', display: 'inline-block' }}>⟳</span>}
             </div>
-            {recentDays.length > 0 ? (
+            {!platformToken ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16, fontSize: 12 }}>
+                点击 <span style={{ color: 'var(--accent)', cursor: 'pointer' }} onClick={() => setPage('settings')}>设置</span> → 网页登录获取用量 Token
+              </div>
+            ) : loading ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16, fontSize: 13 }}>加载中…</div>
+            ) : recentDays.length > 0 ? (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 90 }}>
                 {recentDays.map((d, i) => (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -248,7 +256,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20, fontSize: 13 }}>暂无数据</div>}
+            ) : <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16, fontSize: 12 }}>{platformToken ? '暂无本月数据，请确认已产生用量' : '请先配置 Token'}</div>}
           </div>
 
           {/* Cost curve */}
