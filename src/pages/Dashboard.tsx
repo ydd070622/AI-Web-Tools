@@ -1,29 +1,37 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RefreshCw, Settings, X, ArrowLeft } from 'lucide-react'
+import { RefreshCw, Settings, X, ArrowLeft, CreditCard, SunMedium, CalendarDays, Brain, Zap, BarChart3, KeyRound } from 'lucide-react'
 
-interface UsageData {
-  balance: number
-  totalSpent: number
-  totalTopped: number
-  dailyCosts: Record<string, number>
-  lastUpdate: number
-}
+interface BalanceData { isAvailable: boolean; currency: string; totalBalance: string; toppedUpBalance: string }
+interface UsageModel { key: string; name: string; totalTokens: number; requestCount: number; cost: number; cacheHitTokens: number; cacheMissTokens: number; responseTokens: number }
+interface UsageDay { date: string; flashTokens: number; proTokens: number; totalTokens: number; totalCost: number }
+interface UsageResult { models: UsageModel[]; days: UsageDay[]; monthCost: number }
 
-interface ModelUsage {
-  name: string
-  inputTokens: number
-  outputTokens: number
-  inputCost: number
-  outputCost: number
+type Page = 'dashboard' | 'settings' | 'detail'
+type ModelKey = 'flash' | 'pro'
+
+const fmtInt = (n: number) => Math.round(n).toLocaleString()
+const fmtMoney = (n: number) => '¥' + n.toFixed(2)
+const mmdd = (d: string) => { const p = d.split('-'); return p.length === 3 ? `${+p[1]}/${+p[2]}` : d }
+
+function recent7Days(days: UsageDay[]): UsageDay[] {
+  const map = new Map(days.map(d => [d.date, d]))
+  const now = new Date()
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - 6 + i)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return map.get(key) || { date: key, flashTokens: 0, proTokens: 0, totalTokens: 0, totalCost: 0 }
+  })
 }
 
 export default function Dashboard() {
+  const [page, setPage] = useState<Page>('dashboard')
+  const [detailModel, setDetailModel] = useState<ModelKey>('flash')
   const [apiKey, setApiKey] = useState('')
-  const [usage, setUsage] = useState<UsageData | null>(null)
-  const [modelUsage, setModelUsage] = useState<ModelUsage[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [error, setError] = useState('')
+  const [balance, setBalance] = useState<BalanceData | null>(null)
+  const [balanceState, setBalanceState] = useState<'loading' | 'ok' | 'error' | 'nokey'>('loading')
+  const [usage, setUsage] = useState<UsageResult | null>(null)
+  const [usageState, setUsageState] = useState<'loading' | 'ok' | 'error' | 'nokey'>('loading')
+  const [configPath, setConfigPath] = useState('')
   const timerRef = useRef<ReturnType<typeof setInterval>>()
 
   const loadApiKey = useCallback(async () => {
@@ -33,259 +41,233 @@ export default function Dashboard() {
         const ds = models.find((m: any) => m.name && m.name.toLowerCase().includes('deepseek'))
         if (ds?.apiKey) setApiKey(ds.apiKey)
       }
-      const saved = await window.electronAPI.getStore('dsUsage')
-      if (saved) {
-        setUsage(saved.usage)
-        setModelUsage(saved.models || [])
-      }
+      try { setConfigPath((await window.electronAPI.getStore('configPath')) || '') } catch {}
     }
   }, [])
 
-  useEffect(() => { loadApiKey() }, [loadApiKey])
-
-  const fetchData = useCallback(async () => {
-    if (!apiKey) return
-    setLoading(true)
-    setError('')
+  const fetchBalance = useCallback(async () => {
+    if (!apiKey) { setBalanceState('nokey'); return }
+    setBalanceState('loading')
     try {
-      const res = await fetch('https://api.deepseek.com/user/balance', {
-        headers: { Authorization: `Bearer ${apiKey}` }
-      })
-      if (!res.ok) { setError('获取失败，请检查 API Key'); return }
+      const res = await fetch('https://api.deepseek.com/user/balance', { headers: { Authorization: `Bearer ${apiKey}` } })
+      if (!res.ok) throw new Error('查询失败')
       const data = await res.json()
-
       const infos = data.balance_infos || []
-      let balance = 0, topped = 0
-      for (const info of infos) {
-        balance += parseFloat(info.total_balance || 0)
-        topped += parseFloat(info.topped_up_balance || 0)
-      }
-      const totalSpent = topped - balance
-
-      // Try to get daily costs if available
-      const dailyCosts: Record<string, number> = {}
-      if (data.daily_costs) Object.assign(dailyCosts, data.daily_costs)
-
-      // Merge with saved data
-      const prevDaily = usage?.dailyCosts || {}
-      for (const [k, v] of Object.entries(prevDaily)) {
-        if (!dailyCosts[k]) dailyCosts[k] = v
-      }
-
-      // Try to get model usage
-      let models: ModelUsage[] = modelUsage
-      try {
-        const mRes = await fetch('https://api.deepseek.com/user/usage', {
-          headers: { Authorization: `Bearer ${apiKey}` }
-        })
-        if (mRes.ok) {
-          const mData = await mRes.json()
-          if (mData.models) {
-            models = mData.models.map((m: any) => ({
-              name: m.model || m.name || '',
-              inputTokens: m.input_tokens || m.prompt_tokens || 0,
-              outputTokens: m.output_tokens || m.completion_tokens || 0,
-              inputCost: m.input_cost || 0,
-              outputCost: m.output_cost || 0,
-            })).filter((m: ModelUsage) => m.name)
-          }
-        }
-      } catch {}
-
-      const ud: UsageData = { balance, totalSpent, totalTopped: topped, dailyCosts, lastUpdate: Date.now() }
-      setUsage(ud)
-      setModelUsage(models)
-
-      if (window.electronAPI) {
-        await window.electronAPI.setStore('dsUsage', { usage: ud, models })
-      }
-    } catch (e: any) {
-      setError('请求失败：' + (e.message || '网络错误'))
-    } finally { setLoading(false) }
-  }, [apiKey, usage, modelUsage])
-
-  useEffect(() => {
-    if (apiKey) { fetchData(); timerRef.current = setInterval(fetchData, 600000) }
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+      let total = 0, topped = 0
+      for (const info of infos) { total += +info.total_balance; topped += +info.topped_up_balance }
+      setBalance({ isAvailable: data.is_available ?? total > 0, currency: infos[0]?.currency || 'CNY', totalBalance: total.toFixed(2), toppedUpBalance: topped.toFixed(2) })
+      setBalanceState('ok')
+    } catch { setBalanceState('error') }
   }, [apiKey])
 
-  const dailyList = usage ? Object.entries(usage.dailyCosts).slice(-7).map(([d, c]) => ({
-    date: d, cost: typeof c === 'number' ? c : parseFloat(c as any) || 0
-  })) : []
-  const maxDaily = Math.max(...dailyList.map(d => d.cost), 1)
-  const spentPercent = usage && usage.totalTopped > 0 ? (usage.totalSpent / usage.totalTopped) * 100 : 0
+  const fetchUsage = useCallback(async () => {
+    if (!apiKey) { setUsageState('nokey'); return }
+    setUsageState('loading')
+    try {
+      const res = await fetch('https://api.deepseek.com/user/usage', { headers: { Authorization: `Bearer ${apiKey}` } })
+      if (!res.ok) throw new Error('查询失败')
+      const data = await res.json()
+      const models: UsageModel[] = (data.models || []).map((m: any) => ({
+        key: m.model?.toLowerCase().includes('flash') ? 'flash' : 'pro',
+        name: m.model || '', totalTokens: (m.total_tokens || 0) + (m.completion_tokens || 0),
+        requestCount: m.request_count || 0, cost: m.cost || 0,
+        cacheHitTokens: m.cache_hit_tokens || 0, cacheMissTokens: m.cache_miss_tokens || 0, responseTokens: m.completion_tokens || 0,
+      }))
+      const days: UsageDay[] = (data.days || []).map((d: any) => ({
+        date: d.date, flashTokens: d.flash_tokens || 0, proTokens: d.pro_tokens || 0,
+        totalTokens: (d.flash_tokens || 0) + (d.pro_tokens || 0), totalCost: d.total_cost || 0,
+      }))
+      setUsage({ models, days, monthCost: data.month_cost || 0 })
+      setUsageState('ok')
+    } catch { setUsageState('error') }
+  }, [apiKey])
 
-  const totalInputTokens = modelUsage.reduce((s, m) => s + m.inputTokens, 0)
-  const totalOutputTokens = modelUsage.reduce((s, m) => s + m.outputTokens, 0)
-  const modelMaxTokens = Math.max(...modelUsage.map(m => m.inputTokens + m.outputTokens), 1)
+  const refreshAll = useCallback(() => { fetchBalance(); fetchUsage() }, [fetchBalance, fetchUsage])
 
+  useEffect(() => { loadApiKey() }, [loadApiKey])
+  useEffect(() => { if (apiKey) { refreshAll(); timerRef.current = setInterval(refreshAll, 300000) }; return () => { if (timerRef.current) clearInterval(timerRef.current) } }, [apiKey])
+
+  const flash = usage?.models.find(m => m.key === 'flash') || null
+  const pro = usage?.models.find(m => m.key === 'pro') || null
+  const maxTokens = Math.max(flash?.totalTokens || 0, pro?.totalTokens || 0, 1)
+  const today = usage?.days.find(d => d.date === new Date().toISOString().slice(0, 10)) || null
+
+  if (page === 'detail') {
+    const isFlash = detailModel === 'flash'
+    const data = isFlash ? flash : pro
+    const title = isFlash ? 'V4 Flash' : 'V4 Pro'
+    const points = recent7Days(usage?.days || []).map(d => ({ date: d.date, value: isFlash ? d.flashTokens : d.proTokens }))
+    const maxVal = Math.max(...points.map(p => p.value), 1)
+
+    return (
+      <div style={{ padding: 24, height: '100%', overflow: 'auto', background: 'var(--bg-primary)' }}>
+        <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setPage('dashboard')}><ArrowLeft size={14} /> 返回</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px', borderRadius: 12, background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 16 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 12, background: isFlash ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
+            {isFlash ? <Zap size={30} fill="#f59e0b" color="#f59e0b" /> : <Brain size={28} color="#6366f1" />}
+          </div>
+          <div><h2 style={{ fontSize: 16, fontWeight: 700 }}>{title}</h2><div style={{ fontSize: 18, fontWeight: 700, color: isFlash ? '#f59e0b' : 'var(--accent)' }}>{data ? fmtMoney(data.cost) : '—'}</div></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="api-config-section" style={{ textAlign: 'center', padding: 16 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>请求次数</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: isFlash ? '#f59e0b' : 'var(--accent)' }}>{data ? fmtInt(data.requestCount) : '—'}</div>
+          </div>
+          <div className="api-config-section" style={{ textAlign: 'center', padding: 16 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Token 总量</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{data ? fmtInt(data.totalTokens) : '—'}</div>
+          </div>
+        </div>
+
+        <div className="api-config-section" style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <span>按日 Token 消耗</span>
+            <span style={{ color: 'var(--accent)' }}>{data ? fmtInt(data.totalTokens) : ''}</span>
+          </div>
+          {usageState === 'ok' && points.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
+              {points.map((p, i) => (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.value > 0 ? (p.value >= 1e6 ? (p.value / 1e6).toFixed(1) + 'M' : p.value >= 1e3 ? (p.value / 1e3).toFixed(1) + 'K' : String(p.value)) : ''}</span>
+                  <div style={{ width: '100%', height: `${Math.max(6, (p.value / maxVal) * 100 * 0.85)}px`, background: isFlash ? 'linear-gradient(180deg,#f59e0b,rgba(245,158,11,0.15))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.15))', borderRadius: '4px 4px 0 0' }} />
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{mmdd(p.date)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>{usageState === 'nokey' ? '未配置' : usageState === 'loading' ? '查询中…' : '暂无数据'}</div>}
+        </div>
+      </div>
+    )
+  }
+
+  if (page === 'settings') {
+    return (
+      <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
+        <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setPage('dashboard')}><ArrowLeft size={14} /> 返回</span></div>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>⚙️ 设置</h2>
+
+        <div className="api-config-section" style={{ padding: 20, marginBottom: 16 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><KeyRound size={14} /> API Key</h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>用于调用 DeepSeek API 获取余额和用量数据，保存在本地配置中。</p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input className="input-base" style={{ flex: 1 }} type="password" value={apiKey} onChange={async e => {
+              setApiKey(e.target.value)
+              if (window.electronAPI) {
+                const models = await window.electronAPI.getStore('customModels')
+                let list = Array.isArray(models) ? models : []
+                const idx = list.findIndex((m: any) => m.name === 'DeepSeek')
+                const item = { name: 'DeepSeek', apiKey: e.target.value, endpoint: 'https://api.deepseek.com/v1', modelName: 'deepseek-chat' }
+                if (idx >= 0) list[idx] = item; else list.push(item)
+                await window.electronAPI.setStore('customModels', list)
+              }
+            }} placeholder={apiKey ? '••••••••••••••••••••••••••••••••••••' : 'sk-...'} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="btn btn-primary btn-sm" onClick={refreshAll}>验证并保存</button>
+            <span style={{ fontSize: 11, color: apiKey ? 'var(--success)' : 'var(--text-muted)' }}>{apiKey ? '已配置' : '未配置'}</span>
+          </div>
+        </div>
+
+        <div className="api-config-section" style={{ padding: 20 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={14} /> 用量同步 Token</h4>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>DeepSeek 用量详情需网页登录 token（与 API Key 不同）。点击下方按钮在浏览器中登录 DeepSeek 平台查看。</p>
+          <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => {
+            if (window.electronAPI) window.electronAPI.openExternal('https://platform.deepseek.com/usage')
+          }}>打开 DeepSeek 平台</button>
+        </div>
+      </div>
+    )
+  }
+
+  // === DASHBOARD ===
   return (
-    <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
+    <div style={{ padding: 24, height: '100%', overflow: 'auto', background: 'var(--bg-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700 }}>📊 数据看板</h2>
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>DeepSeek 账户余额与用量监控</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 24 }}>🔵</span>
+          <h1 style={{ fontSize: 16, fontWeight: 700 }}>DeepSeek Monitor</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-ghost" onClick={() => setShowSettings(true)}><Settings size={13} /> 设置</button>
-          <button className="btn btn-primary" onClick={fetchData} disabled={loading}>
-            <RefreshCw size={13} style={loading ? { animation: 'spin 1s infinite linear' } : {}} /> 刷新
-          </button>
+          <button className="btn btn-ghost" onClick={refreshAll}><RefreshCw size={14} /></button>
+          <button className="btn btn-ghost" onClick={() => setPage('settings')}><Settings size={14} /></button>
         </div>
       </div>
 
-      {!apiKey ? (
-        <div style={{ textAlign: 'center', padding: 60 }}>
-          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>尚未配置 DeepSeek API Key</div>
-          <button className="btn btn-primary" onClick={() => setShowSettings(true)}>🔑 配置 API Key</button>
+      {/* Balance card */}
+      <div className="api-config-section" style={{ padding: 20, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><CreditCard size={15} /><span>账户余额</span></div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 10px', borderRadius: 10, background: balance?.isAvailable ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: balance?.isAvailable ? 'var(--success)' : '#ef4444' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: balance?.isAvailable ? 'var(--success)' : '#ef4444' }} />{balance?.isAvailable ? '可用' : '余额不足'}
+          </span>
         </div>
-      ) : (
-        <>
-          {error && (
-            <div style={{ padding: 12, borderRadius: 8, background: 'rgba(239,68,68,0.08)', color: '#ef4444', fontSize: 13, marginBottom: 16, border: '1px solid rgba(239,68,68,0.15)' }}>
-              {error}
-            </div>
-          )}
-
-          {usage && (
-            <>
-              {/* Balance cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-                <div className="api-config-section" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>¥{usage.balance.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>剩余余额</div>
-                </div>
-                <div className="api-config-section" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>¥{usage.totalSpent.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>已消费</div>
-                </div>
-                <div className="api-config-section" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700 }}>¥{usage.totalTopped.toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>总充值</div>
-                </div>
-                <div className="api-config-section" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 700 }}>{(totalInputTokens + totalOutputTokens).toLocaleString()}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Token 总量</div>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="api-config-section" style={{ marginBottom: 20, padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>消费占比</span>
-                  <span style={{ color: (spentPercent || 0) > 80 ? '#ef4444' : 'var(--accent)', fontWeight: 600 }}>{(spentPercent || 0).toFixed(1)}%</span>
-                </div>
-                <div style={{ height: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min(spentPercent || 0, 100)}%`, background: (spentPercent || 0) > 80 ? 'linear-gradient(90deg,#ef4444,#f87171)' : 'linear-gradient(90deg,#6366f1,#818cf8)', borderRadius: 4, transition: 'width .5s' }} />
-                </div>
-              </div>
-
-              {/* 7-day chart */}
-              {dailyList.length > 0 && (
-                <div className="api-config-section" style={{ marginBottom: 20, padding: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>📈 近七天消费趋势</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
-                    {dailyList.map((d, i) => (
-                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>¥{d.cost.toFixed(2)}</span>
-                        <div style={{ width: '100%', height: `${(d.cost / maxDaily) * 70}px`, background: 'linear-gradient(180deg,var(--accent),rgba(99,102,241,0.2))', borderRadius: '3px 3px 0 0', minHeight: 2 }} />
-                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{d.date.slice(5)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Model usage */}
-              {modelUsage.length > 0 && (
-                <div className="api-config-section" style={{ marginBottom: 20, padding: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>🤖 模型用量</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                    <div className="api-config-section" style={{ textAlign: 'center', padding: 14 }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>{totalInputTokens.toLocaleString()}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>输入 Token</div>
-                    </div>
-                    <div className="api-config-section" style={{ textAlign: 'center', padding: 14 }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>{totalOutputTokens.toLocaleString()}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>输出 Token</div>
-                    </div>
-                  </div>
-                  {modelUsage.map(m => (
-                    <div key={m.name} style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{m.name}</div>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 50 }}>输入</span>
-                          <div style={{ flex: 1, height: 18, background: 'rgba(255,255,255,0.03)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${((m.inputTokens + m.outputTokens) / modelMaxTokens) * 100 * (m.inputTokens / (m.inputTokens + m.outputTokens || 1))}%`, background: 'linear-gradient(90deg,#6366f1,#818cf8)', borderRadius: 3, minWidth: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 60 }}>{m.inputTokens.toLocaleString()}</span>
-                        </div>
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 50 }}>输出</span>
-                          <div style={{ flex: 1, height: 18, background: 'rgba(255,255,255,0.03)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${((m.inputTokens + m.outputTokens) / modelMaxTokens) * 100 * (m.outputTokens / (m.inputTokens + m.outputTokens || 1))}%`, background: 'linear-gradient(90deg,#22c55e,#4ade80)', borderRadius: 3, minWidth: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', width: 60 }}>{m.outputTokens.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-                {usage.lastUpdate ? `最近更新：${new Date(usage.lastUpdate).toLocaleString()}` : ''}
-                · 每 10 分钟自动刷新
-              </div>
-            </>
-          )}
-        </>
-      )}
-
-      {showSettings && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowSettings(false) }}>
-          <div className="prompts-modal" style={{ width: 460 }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600 }}>⚙️ 数据看板设置</h3>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowSettings(false)}><X size={14} /></button>
-            </div>
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label className="label" style={{ marginBottom: 4, display: 'block' }}>DeepSeek API Key</label>
-                <input className="input-base" type="password" value={apiKey} onChange={async e => {
-                  setApiKey(e.target.value)
-                  if (window.electronAPI) {
-                    const models = await window.electronAPI.getStore('customModels')
-                    let list = Array.isArray(models) ? models : []
-                    const idx = list.findIndex((m: any) => m.name === 'DeepSeek')
-                    if (idx >= 0) list[idx] = { ...list[idx], apiKey: e.target.value }
-                    else list.push({ name: 'DeepSeek', apiKey: e.target.value, endpoint: 'https://api.deepseek.com/v1', modelName: 'deepseek-chat' })
-                    await window.electronAPI.setStore('customModels', list)
-                  }
-                }} placeholder="sk-..." />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  API Key 用于查询余额。用量 Token 暂需通过网页登录获取，将跳转 DeepSeek 平台。
-                </div>
-              </div>
-              <div>
-                <label className="label" style={{ marginBottom: 4, display: 'block' }}>网页登录同步用量</label>
-                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => {
-                  if (window.electronAPI) window.electronAPI.openExternal('https://platform.deepseek.com/usage')
-                }}>
-                  打开 DeepSeek 平台
-                </button>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  点击后在浏览器中登录 DeepSeek，即可查看详细用量数据。余额数据由 API Key 直接获取。
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-primary" onClick={() => setShowSettings(false)}>完成</button>
-              </div>
-            </div>
+        <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 14, color: balanceState === 'ok' ? 'var(--text)' : 'var(--text-muted)' }}>
+          {balanceState === 'loading' ? '查询中…' : balanceState === 'nokey' ? '未配置' : balanceState === 'error' ? '查询失败' : `${balance?.currency === 'USD' ? '$' : '¥'}${balance?.totalBalance || '0.00'}`}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ padding: 12, background: 'var(--bg-card)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#f59e0b', marginBottom: 4 }}><SunMedium size={13} /> 当日消耗</div>
+            <strong>{today ? fmtMoney(today.totalCost) : '—'}</strong>
+          </div>
+          <div style={{ padding: 12, background: 'var(--bg-card)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#f59e0b', marginBottom: 4 }}><CalendarDays size={13} /> 本月消费</div>
+            <strong>{usageState === 'ok' && usage ? fmtMoney(usage.monthCost) : '—'}</strong>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Model cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {(['flash', 'pro'] as ModelKey[]).map(k => {
+          const d = k === 'flash' ? flash : pro
+          const isFlash = k === 'flash'
+          return (
+            <div key={k} className="api-config-section" style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }} onClick={() => { setDetailModel(k); setPage('detail') }}>
+              <div style={{ width: 44, height: 44, borderRadius: 10, background: isFlash ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                {isFlash ? <Zap size={24} fill="#f59e0b" color="#f59e0b" /> : <Brain size={22} color="#6366f1" />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>{isFlash ? 'V4 Flash' : 'V4 Pro'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{d ? `${fmtInt(d.totalTokens)} Tokens` : '—'}</span>
+                  <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
+                    <div style={{ height: '100%', width: `${d ? Math.max(2, (d.totalTokens / maxTokens) * 100) : 0}%`, background: isFlash ? 'linear-gradient(90deg,#f59e0b,#fbbf24)' : 'linear-gradient(90deg,#6366f1,#818cf8)', borderRadius: 2 }} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 700 }}>{d ? fmtMoney(d.cost) : '—'}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Trend chart */}
+      <div className="api-config-section" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600 }}><BarChart3 size={14} color="var(--accent)" /> 消耗趋势</div>
+        </div>
+        {usageState === 'ok' && usage && usage.days.length > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100 }}>
+            {recent7Days(usage.days).map((d, i) => {
+              const max = Math.max(...recent7Days(usage.days).map(x => x.totalTokens), 1)
+              return (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{d.totalTokens > 0 ? (d.totalTokens >= 1e6 ? (d.totalTokens / 1e6).toFixed(0) + 'M' : d.totalTokens >= 1e3 ? (d.totalTokens / 1e3).toFixed(1) + 'K' : String(d.totalTokens)) : ''}</span>
+                  <div style={{ width: '100%', height: `${Math.max(6, (d.totalTokens / max) * 100 * 0.75)}px`, background: 'linear-gradient(180deg,var(--accent),rgba(99,102,241,0.15))', borderRadius: '4px 4px 0 0' }} />
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{mmdd(d.date)}</span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
+            {usageState === 'nokey' ? '未配置 API Key' : usageState === 'loading' ? '查询中…' : usageState === 'error' ? '查询失败' : '暂无数据'}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
