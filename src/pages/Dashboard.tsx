@@ -164,7 +164,7 @@ export default function Dashboard() {
     const maxVal = Math.max(...points.map(p => p.value), 1)
 
     return (
-      <div style={{ padding: 24, height: '100%', overflow: 'auto', background: 'var(--bg-primary)' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '24px 0' }}>
         <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setPage('dashboard')}><ArrowLeft size={14} /> 返回</span></div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '18px 20px', borderRadius: 12, background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 16 }}>
           <div style={{ width: 52, height: 52, borderRadius: 12, background: isFlash ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
