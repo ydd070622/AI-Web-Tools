@@ -251,8 +251,8 @@ export default function Dashboard() {
           ))}
 
           {/* Token trend */}
-          <div className="api-config-section" style={{ padding: 18, marginTop: 'auto' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+          <div className="api-config-section" style={{ padding: 18, marginTop: 'auto', display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexShrink: 0 }}>
               <BarChart3 size={14} color="var(--accent)" /> 本月 Token 消耗趋势
               {!platformToken && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>（需配置用量 Token）</span>}
               {platformToken && loading && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400, animation: 'spin 1s infinite linear', display: 'inline-block' }}>⟳</span>}
@@ -264,7 +264,7 @@ export default function Dashboard() {
             ) : loading ? (
               <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 16, fontSize: 13 }}>加载中…</div>
             ) : recentDays.length > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 90 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, flex: 1 }}>
                 {recentDays.map((d, i) => (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{d.totalTokens > 0 ? fmtShort(d.totalTokens) : ''}</span>
@@ -304,12 +304,12 @@ export default function Dashboard() {
           </div>
 
           {/* Monthly trend bars */}
-          <div className="api-config-section" style={{ padding: 18, marginTop: 'auto' }}>
+          <div className="api-config-section" style={{ padding: 18, marginTop: 'auto', display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               📈 月度消费趋势
             </div>
             {history.length > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 120 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flex: 1 }}>
                 {history.map((h, i) => (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                     <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{fmtMoney(h.cost)}</span>
