@@ -13,6 +13,16 @@ const fmtInt = (n: number) => Math.round(n).toLocaleString()
 const fmtMoney = (n: number) => '¥' + n.toFixed(2)
 const mmdd = (d: string) => { const p = d.split('-'); return p.length === 3 ? `${+p[1]}/${+p[2]}` : d }
 
+function recent7Days(days: UsageDay[]): UsageDay[] {
+  const map = new Map(days.map(d => [d.date, d]))
+  const now = new Date()
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - 6 + i)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return map.get(key) || { date: key, flashTokens: 0, proTokens: 0, totalTokens: 0, totalCost: 0 }
+  })
+}
+
 const headersWithToken = (token: string): Record<string, string> => ({
   Authorization: `Bearer ${token}`,
   'x-app-version': '1.0.0', Accept: '*/*',
@@ -51,12 +61,19 @@ async function fetchMonthUsage(token: string, month: number, year: number): Prom
     }
 
     const days: UsageDay[] = (am?.data?.biz_data?.days || []).map((d: any) => {
-      let flash = 0, pro = 0
+      let flash = 0, pro = 0, total = 0
       for (const mu of (d.data || [])) {
-        const t = (mu.usage || []).reduce((s: number, e: any) => s + (['PROMPT_CACHE_HIT_TOKEN', 'PROMPT_CACHE_MISS_TOKEN', 'RESPONSE_TOKEN', 'PROMPT_TOKEN'].includes(e.type) ? Math.round(+e.amount || 0) : 0), 0)
-        if (mu.model === 'deepseek-v4-flash') flash = t; else if (mu.model === 'deepseek-v4-pro') pro = t
+        let tokens = 0
+        for (const e of (mu.usage || [])) {
+          if (['PROMPT_CACHE_HIT_TOKEN', 'PROMPT_CACHE_MISS_TOKEN', 'RESPONSE_TOKEN', 'PROMPT_TOKEN'].includes(e.type)) {
+            tokens += Math.round(parseFloat(e.amount) || 0)
+          }
+        }
+        total += tokens
+        if (mu.model === 'deepseek-v4-flash') flash = tokens
+        else if (mu.model === 'deepseek-v4-pro') pro = tokens
       }
-      return { date: d.date, flashTokens: flash, proTokens: pro, totalTokens: flash + pro, totalCost: costByDate[d.date] || 0 }
+      return { date: d.date, flashTokens: flash, proTokens: pro, totalTokens: total, totalCost: costByDate[d.date] || 0 }
     })
 
     const monthCost = costTotal ? (costTotal.total || []).reduce((s: number, m: any) => s + (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0), 0) : 0
@@ -119,7 +136,7 @@ export default function Dashboard() {
   const pro = usage?.models.find(m => m.key === 'pro') || null
   const maxTokens = Math.max(flash?.totalTokens || 0, pro?.totalTokens || 0, 1)
   const today = usage?.days.find(d => d.date === new Date().toISOString().slice(0, 10)) || null
-  const recentDays = (usage?.days || []).slice(-Math.min((usage?.days || []).length, 7))
+  const recentDays = recent7Days(usage?.days || [])
   const maxDailyToken = Math.max(...recentDays.map(d => d.totalTokens), 1)
   const maxDailyCost = Math.max(...recentDays.map(d => d.totalCost), 0.01)
   const histMaxCost = Math.max(...history.map(h => h.cost), 1)
