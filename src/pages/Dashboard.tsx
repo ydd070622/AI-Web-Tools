@@ -3,15 +3,21 @@ import { RefreshCw, Settings, X, ArrowLeft, CreditCard, SunMedium, CalendarDays,
 
 interface BalanceData { isAvailable: boolean; currency: string; totalBalance: string; toppedUpBalance: string }
 interface UsageModel { key: string; name: string; totalTokens: number; requestCount: number; cost: number; cacheHitTokens: number; cacheMissTokens: number; responseTokens: number }
-interface UsageDay { date: string; flashTokens: number; proTokens: number; totalTokens: number; totalCost: number }
+interface UsageDay { date: string; flashTokens: number; proTokens: number; totalTokens: number; totalCost: number; flashCost: number; proCost: number }
 interface UsageResult { models: UsageModel[]; days: UsageDay[]; monthCost: number }
-interface HistoryMonth { month: string; cost: number; tokens: number }
+interface HistoryMonth { month: string; cost: number; tokens: number; days: UsageDay[] }
 
 type Page = 'dashboard' | 'settings'
+type DetailPage =
+  | { type: 'monthly'; month: string; days: UsageDay[]; monthCost: number }
+  | { type: 'model'; days: UsageDay[] }
+  | { type: 'daily'; date: string; days: UsageDay[] }
+  | null
 
 const fmtInt = (n: number) => Math.round(n).toLocaleString()
 const fmtMoney = (n: number) => '¥' + n.toFixed(2)
 const mmdd = (d: string) => { const p = d.split('-'); return p.length === 3 ? `${+p[1]}/${+p[2]}` : d }
+const fmtShort = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n)
 
 function recent7Days(days: UsageDay[]): UsageDay[] {
   const map = new Map(days.map(d => [d.date, d]))
@@ -19,8 +25,12 @@ function recent7Days(days: UsageDay[]): UsageDay[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now); d.setDate(d.getDate() - 6 + i)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    return map.get(key) || { date: key, flashTokens: 0, proTokens: 0, totalTokens: 0, totalCost: 0 }
+    return map.get(key) || { date: key, flashTokens: 0, proTokens: 0, totalTokens: 0, totalCost: 0, flashCost: 0, proCost: 0 }
   })
+}
+
+function getDefaultDays(): UsageDay {
+  return { date: '', flashTokens: 0, proTokens: 0, totalTokens: 0, totalCost: 0, flashCost: 0, proCost: 0 }
 }
 
 const headersWithToken = (token: string): Record<string, string> => ({
@@ -41,7 +51,19 @@ async function fetchMonthUsage(token: string, month: number, year: number): Prom
 
     const costTotal = co?.data?.biz_data?.[0]
     const costByDate: Record<string, number> = {}
-    if (costTotal) for (const d of (costTotal.days || [])) costByDate[d.date] = (d.data || []).reduce((s: number, m: any) => s + (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0), 0)
+    const costByDateModel: Record<string, { flash: number; pro: number }> = {}
+    if (costTotal) {
+      for (const d of (costTotal.days || [])) {
+        costByDate[d.date] = (d.data || []).reduce((s: number, m: any) => s + (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0), 0)
+        let fc = 0, pc = 0
+        for (const m of (d.data || [])) {
+          const mc = (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0)
+          if (m.model === 'deepseek-v4-flash') fc = mc
+          else if (m.model === 'deepseek-v4-pro') pc = mc
+        }
+        costByDateModel[d.date] = { flash: fc, pro: pc }
+      }
+    }
 
     const costForModel = (model: string) => {
       if (!costTotal) return 0
@@ -73,7 +95,8 @@ async function fetchMonthUsage(token: string, month: number, year: number): Prom
         if (mu.model === 'deepseek-v4-flash') flash = tokens
         else if (mu.model === 'deepseek-v4-pro') pro = tokens
       }
-      return { date: d.date, flashTokens: flash, proTokens: pro, totalTokens: total, totalCost: costByDate[d.date] || 0 }
+      const cbm = costByDateModel[d.date] || { flash: 0, pro: 0 }
+      return { date: d.date, flashTokens: flash, proTokens: pro, totalTokens: total, totalCost: costByDate[d.date] || 0, flashCost: cbm.flash, proCost: cbm.pro }
     })
 
     const monthCost = costTotal ? (costTotal.total || []).reduce((s: number, m: any) => s + (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0), 0) : 0
@@ -83,6 +106,8 @@ async function fetchMonthUsage(token: string, month: number, year: number): Prom
 
 export default function Dashboard() {
   const [page, setPage] = useState<Page>('dashboard')
+  const [detailPage, setDetailPage] = useState<DetailPage>(null)
+  const [detailModelTab, setDetailModelTab] = useState<'flash' | 'pro'>('flash')
   const [apiKey, setApiKey] = useState('')
   const [platformToken, setPlatformToken] = useState('')
   const [balance, setBalance] = useState<BalanceData | null>(null)
@@ -91,6 +116,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval>>()
   const [chartH, setChartH] = useState(200)
+  const [detailChartH, setDetailChartH] = useState(220)
 
   const loadConfig = useCallback(async () => {
     if (window.electronAPI) {
@@ -123,7 +149,7 @@ export default function Dashboard() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const result = await fetchMonthUsage(platformToken, d.getMonth() + 1, d.getFullYear())
-      if (result) hist.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, cost: result.monthCost, tokens: result.days.reduce((s, day) => s + day.totalTokens, 0) })
+      if (result) hist.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, cost: result.monthCost, tokens: result.days.reduce((s, day) => s + day.totalTokens, 0), days: result.days })
     }
     setHistory(hist)
     setLoading(false)
@@ -133,7 +159,10 @@ export default function Dashboard() {
   useEffect(() => { if (apiKey) { fetchBalance(); timerRef.current = setInterval(fetchBalance, 300000) }; return () => { if (timerRef.current) clearInterval(timerRef.current) } }, [apiKey])
   useEffect(() => { if (platformToken) fetchAllData() }, [platformToken])
   useEffect(() => {
-    const calc = () => setChartH(Math.max(60, window.innerHeight - 580))
+    const calc = () => {
+      setChartH(Math.max(60, window.innerHeight - 580))
+      setDetailChartH(Math.max(60, window.innerHeight - 520))
+    }
     calc()
     window.addEventListener('resize', calc)
     return () => window.removeEventListener('resize', calc)
@@ -150,9 +179,9 @@ export default function Dashboard() {
   const totalHistCost = history.reduce((s, h) => s + h.cost, 0)
   const totalHistTokens = history.reduce((s, h) => s + h.tokens, 0)
 
-  // Token format
-  const fmtShort = (n: number) => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n)
+  const todayStr = new Date().toISOString().slice(0, 10)
 
+  // ===== SETTINGS PAGE =====
   if (page === 'settings') {
     return (
       <div style={{ maxWidth: 500, margin: '0 auto', padding: 24 }}>
@@ -190,7 +219,230 @@ export default function Dashboard() {
     )
   }
 
-  // Cost curve SVG points
+  // ===== DETAIL PAGE SHARED COMPONENTS =====
+  const DetailHeader = ({ children, dateStr }: { children: React.ReactNode; dateStr?: string }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 0', marginBottom: 24, borderBottom: '1px solid var(--border-color)' }}>
+      <button className="btn btn-ghost btn-sm" onClick={() => setDetailPage(null)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+        <ArrowLeft size={14} /> 返回
+      </button>
+      <span style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>{children}</span>
+      {dateStr && <span style={{ fontSize: 13, color: 'var(--text-secondary)', marginLeft: 4, fontWeight: 400 }}>{dateStr}</span>}
+      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', fontWeight: 500, marginLeft: 'auto' }}>DeepSeek</span>
+    </div>
+  )
+
+  const StatsBox = ({ items }: { items: { value: string; label: string; color?: string }[] }) => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      {items.map((s, i) => (
+        <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 14, textAlign: 'center' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{s.label}</div>
+        </div>
+      ))}
+    </div>
+  )
+
+  const BarChartCard = ({ title, days, maxVal, getVal, barH }: { title: string; days: UsageDay[]; maxVal: number; getVal: (d: UsageDay) => number; barH: number }) => {
+    const fmt = (v: number) => v >= 100 ? fmtMoney(v) : v > 0 ? '¥' + v.toFixed(2) : ''
+    return (
+      <div className="api-config-section" style={{ padding: 20, marginBottom: 0, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexShrink: 0 }}>{title}</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flex: 1, minHeight: 0, overflow: 'hidden', padding: '0 8px' }}>
+          {days.map((d, i) => {
+            const val = getVal(d)
+            const h = val > 0 ? Math.max(6, (val / maxVal) * barH) : 0
+            const isToday = d.date === todayStr
+            return (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, height: '100%', justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap', minHeight: 16 }}>{val > 0 ? fmt(val) : ''}</span>
+                <div style={{ width: '100%', height: h, background: isToday ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.1))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '4px 4px 0 0' }} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: isToday ? '#22c55e' : 'var(--text-secondary)' }}>{`${new Date(d.date).getDate()}日`}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ===== DETAIL PAGES =====
+  if (detailPage) {
+    const dp = detailPage
+    const inner = document.querySelector('.content-area')
+    const areaH = inner ? inner.clientHeight : window.innerHeight - 100
+    const cH = Math.max(60, areaH - 500)
+
+    // ---- SCENE 1: MONTHLY detail ----
+    if (dp.type === 'monthly') {
+      const currentMonth = new Date().toISOString().slice(0, 7)
+      const allMonths = [
+        { month: currentMonth, label: `${currentMonth}（本月）`, days: usage?.days || [], monthCost: usage?.monthCost || 0 },
+        ...history.filter(h => h.month !== currentMonth).map(h => ({ month: h.month, label: h.month, days: h.days, monthCost: h.cost })),
+      ]
+      const selected = allMonths.find(m => m.month === dp.month) || allMonths[0]
+      const maxCost = Math.max(...selected.days.map(d => d.totalCost), 0.01)
+      const activeDays = selected.days.filter(d => d.totalCost > 0).length
+      const avgCost = activeDays > 0 ? selected.monthCost / activeDays : 0
+      const maxDayCost = Math.max(...selected.days.map(d => d.totalCost), 0)
+      const [ym, mo] = selected.month.split('-')
+      return (
+        <div style={{ height: '100%', overflow: 'hidden', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 0', marginBottom: 24, borderBottom: '1px solid var(--border-color)' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDetailPage(null)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+                <ArrowLeft size={14} /> 返回
+              </button>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>📅 月度消费明细</span>
+              <select
+                value={selected.month}
+                onChange={e => {
+                  const m = allMonths.find(x => x.month === e.target.value)
+                  if (m) setDetailPage({ type: 'monthly', month: m.month, days: m.days, monthCost: m.monthCost })
+                }}
+                style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', outline: 'none', fontWeight: 400 }}
+              >
+                {allMonths.map(m => (
+                  <option key={m.month} value={m.month}>{m.label}</option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', fontWeight: 500, marginLeft: 'auto' }}>DeepSeek</span>
+            </div>
+            <StatsBox items={[
+              { value: fmtMoney(selected.monthCost), label: `${+mo}月总消费`, color: 'var(--accent)' },
+              { value: fmtMoney(avgCost), label: '日均消费' },
+              { value: fmtMoney(maxDayCost), label: '最高单日' },
+              { value: String(activeDays), label: '活跃天数' },
+            ]} />
+            <BarChartCard title="📊 每日消费金额" days={selected.days} maxVal={maxCost} getVal={d => d.totalCost} barH={cH} />
+          </div>
+        </div>
+      )
+    }
+
+    // ---- SCENE 2: MODEL detail ----
+    if (dp.type === 'model') {
+      const isFlash = detailModelTab === 'flash'
+      const maxCost = Math.max(...dp.days.map(d => isFlash ? d.flashCost : d.proCost), 0.01)
+      const modelCost = dp.days.reduce((s, d) => s + (isFlash ? d.flashCost : d.proCost), 0)
+      const modelTokens = dp.days.reduce((s, d) => s + (isFlash ? d.flashTokens : d.proTokens), 0)
+      const activeDays = dp.days.filter(d => (isFlash ? d.flashCost : d.proCost) > 0).length
+      const otherCost = isFlash ? dp.days.reduce((s, d) => s + d.proCost, 0) : dp.days.reduce((s, d) => s + d.flashCost, 0)
+      const otherName = isFlash ? 'Pro' : 'Flash'
+      const tabColor = isFlash ? '#f59e0b' : '#6366f1'
+      return (
+        <div style={{ height: '100%', overflow: 'hidden', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+            <DetailHeader>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: isFlash ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)', color: tabColor }}>
+                {isFlash ? <Zap size={14} /> : <Brain size={14} />}
+                {isFlash ? 'V4 Flash' : 'V4 Pro'}
+              </span>
+              每日消费明细
+            </DetailHeader>
+
+            <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', borderRadius: 8, padding: 3, marginBottom: 20 }}>
+              {(['flash', 'pro'] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setDetailModelTab(k)}
+                  style={{
+                    flex: 1, textAlign: 'center', padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer', border: 'none', background: detailModelTab === k ? 'var(--accent)' : 'transparent',
+                    color: detailModelTab === k ? '#fff' : 'var(--text-muted)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {k === 'flash' ? '⚡ V4 Flash' : '🧠 V4 Pro'}
+                </button>
+              ))}
+            </div>
+
+            <StatsBox items={[
+              { value: fmtMoney(modelCost), label: `${isFlash ? 'Flash' : 'Pro'} 月消费`, color: tabColor },
+              { value: fmtMoney(activeDays > 0 ? modelCost / activeDays : 0), label: '日均消费' },
+              { value: fmtShort(modelTokens), label: '总 Token' },
+              { value: fmtMoney(otherCost), label: `${otherName} 月消费` },
+            ]} />
+            <BarChartCard title="📊 每日消费金额" days={dp.days} maxVal={maxCost} getVal={d => isFlash ? d.flashCost : d.proCost} barH={cH} />
+          </div>
+        </div>
+      )
+    }
+
+    // ---- SCENE 3: DAILY detail ----
+    if (dp.type === 'daily') {
+      const dayData = dp.days.find(d => d.date === dp.date) || getDefaultDays()
+      const maxToken = Math.max(dayData.flashTokens, dayData.proTokens, 1)
+      const barH = Math.min(200, Math.max(60, cH))
+      const sortedDays = dp.days.filter(d => d.totalTokens > 0).map(d => d.date).sort()
+      const curIdx = sortedDays.indexOf(dp.date)
+      const prevDate = curIdx > 0 ? sortedDays[curIdx - 1] : null
+      const nextDate = curIdx < sortedDays.length - 1 ? sortedDays[curIdx + 1] : null
+      const goToDay = (date: string) => setDetailPage({ type: 'daily', date, days: dp.days })
+      return (
+        <div style={{ height: '100%', overflow: 'hidden', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 0', marginBottom: 24, borderBottom: '1px solid var(--border-color)' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDetailPage(null)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>
+                <ArrowLeft size={14} /> 返回
+              </button>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>📊 用量明细</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  disabled={!prevDate}
+                  onClick={() => prevDate && goToDay(prevDate)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'transparent', color: prevDate ? 'var(--text-secondary)' : 'var(--text-muted)', cursor: prevDate ? 'pointer' : 'default', fontSize: 12, opacity: prevDate ? 1 : 0.4 }}
+                >◀ 前一天</button>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 400, minWidth: 90, textAlign: 'center' }}>{dp.date}</span>
+                <button
+                  disabled={!nextDate}
+                  onClick={() => nextDate && goToDay(nextDate)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'transparent', color: nextDate ? 'var(--text-secondary)' : 'var(--text-muted)', cursor: nextDate ? 'pointer' : 'default', fontSize: 12, opacity: nextDate ? 1 : 0.4 }}
+                >后一天 ▶</button>
+              </div>
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', fontWeight: 500, marginLeft: 'auto' }}>DeepSeek</span>
+            </div>
+            <StatsBox items={[
+              { value: fmtShort(dayData.totalTokens), label: '当日总 Token' },
+              { value: fmtShort(dayData.flashTokens), label: 'V4 Flash', color: '#f59e0b' },
+              { value: fmtShort(dayData.proTokens), label: 'V4 Pro', color: '#8b5cf6' },
+              { value: fmtMoney(dayData.totalCost), label: '当日消费' },
+            ]} />
+
+            <div className="api-config-section" style={{ padding: 20, marginBottom: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, justifyContent: 'space-between' }}>
+                <span>📊 Flash vs Pro 用量对比</span>
+                <div style={{ display: 'flex', gap: 16, fontSize: 11, fontWeight: 400 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b' }} /> Flash</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: '#8b5cf6' }} /> Pro</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 60, padding: '20px 0', height: Math.max(160, barH + 60) }}>
+                {/* Flash bar */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>{fmtShort(dayData.flashTokens)}</span>
+                  <div style={{ width: 80, height: Math.max(10, (dayData.flashTokens / maxToken) * barH), background: 'linear-gradient(180deg,#f59e0b,rgba(245,158,11,0.15))', borderRadius: '6px 6px 0 0' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>V4 Flash</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>{fmtMoney(dayData.flashCost)}</span>
+                </div>
+                {/* Pro bar */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#8b5cf6' }}>{fmtShort(dayData.proTokens)}</span>
+                  <div style={{ width: 80, height: Math.max(10, (dayData.proTokens / maxToken) * barH), background: 'linear-gradient(180deg,#8b5cf6,rgba(139,92,246,0.1))', borderRadius: '6px 6px 0 0' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>V4 Pro</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#8b5cf6' }}>{fmtMoney(dayData.proCost)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return null
+  }
+
+  // ===== MAIN DASHBOARD =====
   const costPoints = recentDays.map((d, i) => {
     const x = 10 + (i / Math.max(recentDays.length - 1, 1)) * 560
     const y = 100 - (d.totalCost / maxDailyCost) * 90
@@ -218,8 +470,6 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, maxWidth: 1080, width: '100%', margin: '0 auto', padding: '0 20px 20px 20px', flex: 1 }}>
         {/* ===== LEFT ===== */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
-
-          {/* Balance */}
           <div className="api-config-section" style={{ padding: 18, height: 210, marginBottom: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CreditCard size={14} /> 账户余额</span>
@@ -233,16 +483,17 @@ export default function Dashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: '#f59e0b', marginBottom: 2 }}><SunMedium size={13} /> 当日</div>
                 <div style={{ fontWeight: 700 }}>{today ? fmtMoney(today.totalCost) : '—'}</div>
               </div>
-              <div style={{ background: 'var(--bg-card)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 8, padding: 10, textAlign: 'center', cursor: usage ? 'pointer' : 'default' }}
+                onClick={() => usage && setDetailPage({ type: 'monthly', month: new Date().toISOString().slice(0, 7), days: usage.days, monthCost: usage.monthCost })}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: '#f59e0b', marginBottom: 2 }}><CalendarDays size={13} /> 本月</div>
                 <div style={{ fontWeight: 700 }}>{usage ? fmtMoney(usage.monthCost) : '—'}</div>
               </div>
             </div>
           </div>
 
-          {/* Models */}
           {[flash, pro].map((m, i) => m && (
-            <div key={i} className="api-config-section" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 0 }}>
+            <div key={i} className="api-config-section" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 0, cursor: 'pointer' }}
+              onClick={() => { setDetailModelTab(m.key as 'flash' | 'pro'); usage && setDetailPage({ type: 'model', days: usage.days }) }}>
               <div style={{ width: 38, height: 38, borderRadius: 10, background: i === 0 ? 'rgba(245,158,11,0.12)' : 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                 {i === 0 ? <Zap size={20} fill="#f59e0b" color="#f59e0b" /> : <Brain size={18} color="#6366f1" />}
               </div>
@@ -259,7 +510,6 @@ export default function Dashboard() {
             </div>
           ))}
 
-          {/* Token trend */}
           <div className="api-config-section" style={{ padding: 18, marginTop: 'auto', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, marginBottom: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexShrink: 0 }}>
               <BarChart3 size={14} color="var(--accent)" /> 本月 Token 消耗趋势
@@ -275,9 +525,10 @@ export default function Dashboard() {
             ) : recentDays.length > 0 ? (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {recentDays.map((d, i) => (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: d.totalTokens > 0 ? 'pointer' : 'default' }}
+                    onClick={() => usage && d.totalTokens > 0 && setDetailPage({ type: 'daily', date: d.date, days: usage.days })}>
                     <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>{d.totalTokens > 0 ? fmtShort(d.totalTokens) : ''}</span>
-                     <div style={{ width: '100%', height: `${Math.max(8, (d.totalTokens / maxDailyToken) * chartH)}px`, background: i === recentDays.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.1))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '100%', height: `${Math.max(8, (d.totalTokens / maxDailyToken) * chartH)}px`, background: i === recentDays.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.1))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
                     <span style={{ fontSize: 10, fontWeight: 600, color: i === recentDays.length - 1 ? '#22c55e' : 'var(--text-secondary)' }}>{mmdd(d.date)}</span>
                   </div>
                 ))}
@@ -288,8 +539,6 @@ export default function Dashboard() {
 
         {/* ===== RIGHT ===== */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%' }}>
-
-          {/* History stats */}
           <div className="api-config-section" style={{ padding: 18, height: 210, marginBottom: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📅 历史月用量</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -312,7 +561,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Monthly trend bars */}
           <div className="api-config-section" style={{ padding: 18, marginTop: 'auto', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, marginBottom: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               📈 月度消费趋势
@@ -320,7 +568,8 @@ export default function Dashboard() {
             {history.length > 0 ? (
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 {history.map((h, i) => (
-                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}
+                    onClick={() => setDetailPage({ type: 'monthly', month: h.month, days: h.days, monthCost: h.cost })}>
                     <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{fmtMoney(h.cost)}</span>
                     <div style={{ width: '100%', height: `${Math.max(8, (h.cost / histMaxCost) * chartH)}px`, background: i === history.length - 1 ? 'linear-gradient(180deg,#22c55e,rgba(34,197,94,0.15))' : 'linear-gradient(180deg,#6366f1,rgba(99,102,241,0.1))', borderRadius: '3px 3px 0 0' }} />
                     <span style={{ fontSize: 10, fontWeight: 600, color: i === history.length - 1 ? '#22c55e' : 'var(--text-secondary)' }}>{h.month.slice(5)}月</span>
