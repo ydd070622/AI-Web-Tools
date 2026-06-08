@@ -11,6 +11,7 @@ import Accounts from './pages/Accounts'
 import Home from './pages/Home'
 import Prompts from './pages/Prompts'
 import Dashboard from './pages/Dashboard'
+import XiaoHongShuCards from './pages/XiaoHongShuCards'
 import type { NavItem, CustomModel, DownloadItem } from './types'
 
 const defaultModels: CustomModel[] = [
@@ -24,6 +25,7 @@ const navItems: NavItem[] = [
   { type: 'website', id: 'chatgpt', label: 'ChatGPT', url: 'https://chatgpt.com', icon: 'globe' },
   { type: 'website', id: 'github', label: 'GitHub', url: 'https://github.com', icon: 'globe' },
   { type: 'website', id: 'gemini', label: 'Gemini', url: 'https://gemini.google.com', icon: 'globe' },
+  { type: 'website', id: 'xhs_juguang', label: '小红书', url: '', icon: 'globe' },
   { type: 'tool', id: 'txt2img', label: '文生图', icon: 'tool' },
   { type: 'tool', id: 'img2img', label: '图生图', icon: 'tool' },
   { type: 'tool', id: 'history', label: '生成历史', icon: 'tool' },
@@ -226,9 +228,10 @@ export default function App() {
       <div className="main-content">
         <div className="content-area">
           {activeId === 'home' && <Home onSelect={setActiveId} searchQuery={searchQuery} searchEngineId={searchEngineId} searchUrl={searchUrl} onSetSearchQuery={setSearchQuery} onSetSearchEngine={setSearchEngineId} onSetSearchUrl={setSearchUrl} />}
-          {websiteSites.map(site => (
+          {websiteSites.filter(s => s.id !== 'xhs_juguang').map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} />
           ))}
+          {activeId === 'xhs_juguang' && <XiaoHongShuCards />}
           {vpnSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} />
           ))}

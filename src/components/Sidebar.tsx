@@ -41,6 +41,7 @@ const favicons: Record<string, string> = {
   gemini: './favicons/gemini.png',
   skyun: './favicons/skyun.png',
   mitce: './favicons/mitce.png',
+  xhs_juguang: './favicons/xhs_juguang.png',
 }
 
 const iconLabel: Record<string, React.ReactNode> = {
@@ -88,7 +89,7 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
               onClick={() => onSelect(item.id)}
               title={item.label}
             >
-              <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" />
+              {favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={14} />)}
             </div>
           ))}
           <div className="sidebar-sep" />
@@ -225,7 +226,7 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
             onClick={() => onSelect(item.id)}
           >
             <span className="sidebar-item-icon">
-              <img src={favicons[item.id]} alt="" className="sidebar-icon-img" />
+              {favicons[item.id] ? <img src={favicons[item.id]} alt="" className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={16} />)}
             </span>
             <span>{item.label}</span>
           </div>
