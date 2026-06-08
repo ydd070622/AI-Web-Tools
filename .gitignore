@@ -4,3 +4,6 @@ dist-electron/
 release/
 *.exe
 *.blockmap
+mockup-*.html
+prototype-*.html
+dashboard-detail-mockup.html
