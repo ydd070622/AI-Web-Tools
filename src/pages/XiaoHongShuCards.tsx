@@ -17,6 +17,9 @@ interface AccountConfig {
   id: string
   name: string
   color: string
+  loggedIn?: boolean
+  lastLogin?: number
+  lastActive?: number
 }
 
 interface Tab {
@@ -37,11 +40,26 @@ const SITES = [
 
 function genColor(i: number) { return COLORS[i % COLORS.length] }
 
+function formatRelativeTime(ts?: number): string {
+  if (!ts) return '未知'
+  const diff = Date.now() - ts
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return '刚刚'
+  if (min < 60) return `${min} 分钟前`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} 小时前`
+  const day = Math.floor(hr / 24)
+  if (day < 7) return `${day} 天前`
+  const d = new Date(ts)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 function defaultAccounts(): AccountConfig[] {
+  const now = Date.now()
   return [
-    { id: 'xhs_account_1', name: '小红书·账号一', color: genColor(0) },
-    { id: 'xhs_account_2', name: '小红书·账号二', color: genColor(1) },
-    { id: 'xhs_account_3', name: '小红书·账号三', color: genColor(2) },
+    { id: 'xhs_account_1', name: '小红书·账号一', color: genColor(0), loggedIn: true, lastLogin: now - 3600000, lastActive: now - 600000 },
+    { id: 'xhs_account_2', name: '小红书·账号二', color: genColor(1), loggedIn: true, lastLogin: now - 7200000, lastActive: now - 3600000 },
+    { id: 'xhs_account_3', name: '小红书·账号三', color: genColor(2), loggedIn: false, lastLogin: now - 86400000, lastActive: now - 43200000 },
   ]
 }
 
@@ -69,7 +87,14 @@ export default function XiaoHongShuCards() {
     (async () => {
       const saved = await window.electronAPI?.getStore(STORE_KEY)
       if (Array.isArray(saved) && saved.length > 0) {
-        setAccounts(saved as AccountConfig[])
+        // Add default status fields for old accounts
+        const migrated = (saved as AccountConfig[]).map(a => ({
+          ...a,
+          loggedIn: a.loggedIn ?? false,
+          lastLogin: a.lastLogin ?? 0,
+          lastActive: a.lastActive ?? 0,
+        }))
+        setAccounts(migrated)
       }
       setLoaded(true)
     })()
@@ -232,8 +257,27 @@ export default function XiaoHongShuCards() {
       id: `xhs_account_${Date.now()}`,
       name: `小红书·账号${idx + 1}`,
       color: genColor(idx),
+      loggedIn: false,
+      lastLogin: 0,
+      lastActive: 0,
     }
     const updated = [...accounts, newAcc]
+    setAccounts(updated)
+    saveStore(updated)
+  }
+
+  const toggleLogin = async (id: string) => {
+    const now = Date.now()
+    const updated = accounts.map(a => {
+      if (a.id !== id) return a
+      const newLoggedIn = !a.loggedIn
+      return {
+        ...a,
+        loggedIn: newLoggedIn,
+        lastLogin: newLoggedIn ? now : a.lastLogin,
+        lastActive: newLoggedIn ? now : a.lastActive,
+      }
+    })
     setAccounts(updated)
     saveStore(updated)
   }
@@ -354,15 +398,28 @@ export default function XiaoHongShuCards() {
         <div style={{ display: 'flex', gap: 20, width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
           {accounts.map(acc => {
             const isEditing = editingId === acc.id
+            const isOnline = acc.loggedIn
             return (
-              <div key={acc.id} style={cardStyle}>
+              <div key={acc.id} style={cardStyle} className="xhs-acc-card">
+                {/* Login toggle button */}
+                <button
+                  className={`xhs-login-btn ${isOnline ? 'logged' : ''}`}
+                  onClick={() => toggleLogin(acc.id)}
+                >
+                  {isOnline ? '✓ 已登录' : '标记登录'}
+                </button>
+
                 <div style={{
                   width: 48, height: 48, borderRadius: '50%',
                   background: `${acc.color}22`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
+                  flexShrink: 0, position: 'relative',
                 }}>
                   <User size={24} color={acc.color} />
+                  <div
+                    className={`xhs-online-dot ${isOnline ? 'online' : 'offline'}`}
+                    onClick={() => toggleLogin(acc.id)}
+                  />
                 </div>
 
                 {isEditing ? (
@@ -397,13 +454,41 @@ export default function XiaoHongShuCards() {
                   </div>
                 )}
 
+                {/* Status panel */}
+                <div className="xhs-status-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>登录状态</span>
+                    <span style={{ color: isOnline ? '#22c55e' : 'var(--text-muted)', fontWeight: 500 }}>
+                      {isOnline ? '● 已登录' : '○ 未登录'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>最近活跃</span>
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {formatRelativeTime(acc.lastActive)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>上次登录</span>
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      {formatRelativeTime(acc.lastLogin)}
+                    </span>
+                  </div>
+                </div>
+
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>🔒 独立 session</span>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%', marginTop: 4 }}>
                   {SITES.map(site => (
                     <button
                       key={site.key}
-                      onClick={() => setActiveView({ account: acc, url: site.url, label: site.label })}
+                      onClick={() => {
+                        // Update lastActive
+                        const updated = accounts.map(a => a.id === acc.id ? { ...a, lastActive: Date.now() } : a)
+                        setAccounts(updated)
+                        saveStore(updated)
+                        setActiveView({ account: acc, url: site.url, label: site.label })
+                      }}
                       style={{
                         padding: '7px 8px', borderRadius: 8,
                         background: site.bg,

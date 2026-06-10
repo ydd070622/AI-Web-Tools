@@ -1567,3 +1567,55 @@ textarea.input-base {
   padding: 14px; border-radius: 8px;
   background: var(--bg-card); border: 1px solid var(--border-color);
 }
+
+/* ===== XHS Account Status ===== */
+.xhs-acc-card {
+  position: relative;
+}
+
+/* Online dot */
+.xhs-online-dot {
+  position: absolute; bottom: 1px; right: 1px;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+  cursor: pointer; transition: all 0.2s;
+}
+.xhs-online-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34,197,94,0.5);
+  animation: xhs-pulse 2s infinite;
+}
+.xhs-online-dot.offline {
+  background: rgba(255,255,255,0.2);
+}
+@keyframes xhs-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+}
+
+/* Status section */
+.xhs-status-section {
+  width: 100%; display: flex; flex-direction: column; gap: 5px;
+  padding: 8px 10px; border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Login button */
+.xhs-login-btn {
+  position: absolute; top: 8px; right: 8px;
+  padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.1);
+  color: #818cf8;
+  opacity: 0; transition: all 0.15s;
+}
+.xhs-acc-card:hover .xhs-login-btn { opacity: 1; }
+.xhs-login-btn:hover { background: rgba(99,102,241,0.2); }
+.xhs-login-btn.logged {
+  color: #4ade80;
+  border-color: rgba(34,197,94,0.3);
+  background: rgba(34,197,94,0.08);
+}

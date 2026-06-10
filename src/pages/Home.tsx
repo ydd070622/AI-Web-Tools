@@ -190,80 +190,96 @@ export default function Home({ onSelect, searchQuery, searchEngineId, searchUrl,
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    let W = 0, H = 0
-    let offsetX = 0, offsetY = 0
 
-    const resize = () => {
-      const parent = canvas.parentElement
-      if (parent) {
-        const rect = parent.getBoundingClientRect()
-        W = canvas.width = rect.width
-        H = canvas.height = rect.height
-        offsetX = rect.left
-        offsetY = rect.top
-      } else {
-        W = canvas.width = window.innerWidth
-        H = canvas.height = window.innerHeight
+    // Get container size directly
+    const container = canvas.parentElement
+    let W = container?.offsetWidth || window.innerWidth
+    let H = container?.offsetHeight || window.innerHeight
+
+    const measure = () => {
+      if (container) {
+        W = container.offsetWidth || window.innerWidth
+        H = container.offsetHeight || window.innerHeight
       }
+      canvas.width = W
+      canvas.height = H
     }
-    // Delay initial resize to ensure DOM is laid out
-    const initTimer = setTimeout(() => {
-      resize()
-      // Re-scatter particles after getting real dimensions
-      for (const p of pts) {
-        p.x = Math.random() * W
-        p.y = Math.random() * H
-      }
-    }, 50)
-    resize()
-    window.addEventListener('resize', resize)
 
     const N = 60, MAX_DIST = 150
     const pts: { x: number; y: number; vx: number; vy: number; r: number; a: number }[] = []
-    for (let i = 0; i < N; i++) {
-      pts.push({ x: Math.random() * (W || window.innerWidth), y: Math.random() * (H || window.innerHeight), vx: (Math.random() - .5) * .4, vy: (Math.random() - .5) * .4, r: Math.random() * 1.5 + .5, a: Math.random() * .4 + .2 })
+    let mx = 0, my = 0, inside = false
+
+    const scatter = () => {
+      const w = W > 1 ? W : window.innerWidth
+      const h = H > 1 ? H : window.innerHeight
+      while (pts.length < N) {
+        pts.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - .5) * .4,
+          vy: (Math.random() - .5) * .4,
+          r: Math.random() * 1.5 + .5,
+          a: Math.random() * .4 + .2
+        })
+      }
+      for (const p of pts) {
+        p.x = Math.random() * w
+        p.y = Math.random() * h
+      }
     }
 
-    let mx = 0, my = 0, inside = false
-    const onMouse = (e: MouseEvent) => {
-      mx = e.clientX - offsetX
-      my = e.clientY - offsetY
-      inside = true
-    }
-    const onLeave = () => { inside = false }
-    const onEnter = () => { inside = true }
-    document.addEventListener('mousemove', onMouse)
-    document.addEventListener('mouseleave', onLeave)
-    document.addEventListener('mouseenter', onEnter)
+    // Initial setup
+    measure()
+    scatter()
 
     let animId = 0
     const draw = () => {
       ctx.clearRect(0, 0, W, H)
-      for (let i = 0; i < N; i++) {
+      for (let i = 0; i < pts.length; i++) {
         const p = pts[i]
         p.x += p.vx; p.y += p.vy
         if (p.x < 0) p.x = W; if (p.x > W) p.x = 0
         if (p.y < 0) p.y = H; if (p.y > H) p.y = 0
         ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
         ctx.fillStyle = `rgba(129,140,248,${p.a})`; ctx.fill()
-        for (let j = i + 1; j < N; j++) {
+        for (let j = i + 1; j < pts.length; j++) {
           const q = pts[j], dx = p.x - q.x, dy = p.y - q.y, d = Math.sqrt(dx * dx + dy * dy)
           if (d < MAX_DIST) {
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y)
-            ctx.strokeStyle = `rgba(129,140,248,${(1 - d / MAX_DIST) * .12})`; ctx.lineWidth = .5; ctx.stroke()
+            ctx.strokeStyle = `rgba(129,140,248,${(1 - d / MAX_DIST) * .12})`
+            ctx.lineWidth = .5; ctx.stroke()
           }
         }
         if (inside) {
           const dx = p.x - mx, dy = p.y - my, d = Math.sqrt(dx * dx + dy * dy)
           if (d < 200) {
             ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mx, my)
-            ctx.strokeStyle = `rgba(167,139,250,${(1 - d / 200) * .2})`; ctx.lineWidth = .8; ctx.stroke()
+            ctx.strokeStyle = `rgba(167,139,250,${(1 - d / 200) * .2})`
+            ctx.lineWidth = .8; ctx.stroke()
           }
         }
       }
       animId = requestAnimationFrame(draw)
     }
     draw()
+
+    // ResizeObserver for sidebar collapse etc.
+    const ro = new ResizeObserver(() => {
+      measure()
+      scatter()
+    })
+    if (container) ro.observe(container)
+
+    const onMouse = (e: MouseEvent) => {
+      // Convert viewport coords to canvas-relative
+      const rect = canvas.getBoundingClientRect()
+      mx = e.clientX - rect.left
+      my = e.clientY - rect.top
+      inside = true
+    }
+    const onLeave = () => { inside = false }
+    document.addEventListener('mousemove', onMouse)
+    document.addEventListener('mouseleave', onLeave)
 
     // Mouse glow (uses viewport coords since layers are position:fixed)
     let vmx = window.innerWidth / 2, vmy = window.innerHeight / 2
@@ -286,23 +302,15 @@ export default function Home({ onSelect, searchQuery, searchEngineId, searchUrl,
     }
     glowLoop()
 
-    // Toggle visibility
-    const showGlow = () => { glowLayersRef.current.forEach(l => l && l.classList.add('visible')) }
-    const hideGlow = () => { glowLayersRef.current.forEach(l => l && l.classList.remove('visible')) }
-    document.addEventListener('mouseenter', showGlow)
-    document.addEventListener('mouseleave', hideGlow)
+    glowLayersRef.current.forEach(l => l && l.classList.add('visible'))
 
     return () => {
-      clearTimeout(initTimer)
+      ro.disconnect()
       cancelAnimationFrame(animId)
       cancelAnimationFrame(glowId)
-      window.removeEventListener('resize', resize)
       document.removeEventListener('mousemove', onMouse)
-      document.removeEventListener('mousemove', onMouseViewport)
       document.removeEventListener('mouseleave', onLeave)
-      document.removeEventListener('mouseenter', onEnter)
-      document.removeEventListener('mouseenter', showGlow)
-      document.removeEventListener('mouseleave', hideGlow)
+      document.removeEventListener('mousemove', onMouseViewport)
     }
   }, [searchUrl])
 
