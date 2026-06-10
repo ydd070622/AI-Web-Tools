@@ -55,7 +55,7 @@ export default function App() {
 
   const onTitleMouseDown = useCallback((e: React.MouseEvent) => {
     if (isMaximized) return
-    if ((e.target as HTMLElement).closest('.titlebar-btn')) return
+    if ((e.target as HTMLElement).closest('.traffic-btn')) return
     const api = window.electronAPI
     if (!api) return
     const sx = e.screenX
@@ -202,9 +202,11 @@ export default function App() {
       <div className="window-titlebar" onMouseDown={onTitleMouseDown}>
         <span className="titlebar-label">AI Web Tools</span>
         <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
-        <div className="titlebar-btn" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</div>
-        <div className="titlebar-btn" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</div>
-        <div className="titlebar-btn titlebar-close" onClick={() => window.electronAPI?.closeWindow()} title="关闭">✕</div>
+        <div className="titlebar-btns">
+          <button className="traffic-btn traffic-minimize" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</button>
+          <button className="traffic-btn traffic-maximize" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</button>
+          <button className="traffic-btn traffic-close" onClick={() => window.electronAPI?.closeWindow()} title="关闭">✕</button>
+        </div>
       </div>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar

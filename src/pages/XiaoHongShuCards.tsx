@@ -27,8 +27,13 @@ interface Tab {
 
 const COLORS = ['#ff6b6b', '#feca57', '#48dbfb', '#a29bfe', '#55efc4', '#fd79a8', '#fdcb6e', '#74b9ff']
 const STORE_KEY = 'xhs_accounts'
-const MAIN_URL = 'https://www.xiaohongshu.com'
-const AD_URL = 'https://ad.xiaohongshu.com'
+
+const SITES = [
+  { key: 'xhs',     label: '小红书',    url: 'https://www.xiaohongshu.com',       emoji: '📕', bg: 'rgba(255,71,87,0.15)',   border: 'rgba(255,71,87,0.4)',   text: '#ff4757' },
+  { key: 'jg',      label: '聚光平台', url: 'https://ad.xiaohongshu.com',          emoji: '📊', bg: 'rgba(255,138,101,0.12)', border: 'rgba(255,138,101,0.4)', text: '#ff8a65' },
+  { key: 'creator', label: '创作者中心', url: 'https://creator.xiaohongshu.com',    emoji: '✍️', bg: 'rgba(99,102,241,0.12)',  border: 'rgba(99,102,241,0.4)',  text: '#818cf8' },
+  { key: 'pro',     label: '专业号',    url: 'https://business.xiaohongshu.com',    emoji: '💼', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.4)',  text: '#fbbf24' },
+]
 
 function genColor(i: number) { return COLORS[i % COLORS.length] }
 
@@ -106,7 +111,6 @@ export default function XiaoHongShuCards() {
     wv.addEventListener('did-finish-load', () => {
       ;(wv as any).executeJavaScript(`
         Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
-        window.open=function(u){if(u)window.location.href=u;return null};
         document.addEventListener('click',function(e){
           var a=e.target.closest('a');
           if(a&&a.target==='_blank'&&a.href){
@@ -115,6 +119,14 @@ export default function XiaoHongShuCards() {
           }
         },true);
       `)
+    })
+
+    wv.addEventListener('new-window', (e: any) => {
+      e.preventDefault()
+      const url = e.url || e.targetUrl
+      if (url && wv) {
+        ;(wv as any).loadURL(url)
+      }
     })
 
     return wv
@@ -385,36 +397,33 @@ export default function XiaoHongShuCards() {
                   </div>
                 )}
 
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>独立 session</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>🔒 独立 session</span>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button
-                    onClick={() => setActiveView({ account: acc, url: MAIN_URL, label: '小红书' })}
-                    style={{
-                      padding: '6px 14px', borderRadius: 8,
-                      background: acc.color, color: '#fff', border: 'none',
-                      fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >
-                    小红书
-                  </button>
-                  <button
-                    onClick={() => setActiveView({ account: acc, url: AD_URL, label: '聚光平台' })}
-                    style={{
-                      padding: '6px 14px', borderRadius: 8,
-                      background: 'transparent', color: acc.color,
-                      border: `1px solid ${acc.color}`, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >
-                    聚光平台
-                  </button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%', marginTop: 4 }}>
+                  {SITES.map(site => (
+                    <button
+                      key={site.key}
+                      onClick={() => setActiveView({ account: acc, url: site.url, label: site.label })}
+                      style={{
+                        padding: '7px 8px', borderRadius: 8,
+                        background: site.bg,
+                        color: site.text,
+                        border: `1px solid ${site.border}`,
+                        fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {site.emoji} {site.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )
           })}
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-          每个账号独立 cookie 隔离，小红书与聚光平台共享同一登录态
+          每个账号独立 cookie 隔离，小红书、聚光平台、创作者中心、专业号共享同一登录态
         </p>
       </div>
     </div>
