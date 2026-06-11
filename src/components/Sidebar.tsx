@@ -21,15 +21,15 @@ interface SidebarProps {
 }
 
 const toolIcons: Record<string, React.ReactNode> = {
-  txt2img: <img src="./icons/txt2img.png" alt="文生图" style={{width: 16, height: 16}} />,
-  img2img: <img src="./icons/img2img.png" alt="图生图" style={{width: 16, height: 16}} />,
-  history: <img src="./icons/history.png" alt="生成历史" style={{width: 16, height: 16}} />,
+  txt2img: <img src="./icons/txt2img.png" alt="文生图" style={{width: 20, height: 20}} />,
+  img2img: <img src="./icons/img2img.png" alt="图生图" style={{width: 20, height: 20}} />,
+  history: <img src="./icons/history.png" alt="生成历史" style={{width: 20, height: 20}} />,
 }
 
 const aggregatorIcons: Record<string, React.ReactNode> = {
-  platforms: <img src="./icons/platforms.png" alt="开放平台" style={{width: 16, height: 16}} />,
-  recharge: <img src="./icons/recharge.png" alt="充值平台" style={{width: 16, height: 16}} />,
-  dashboard: <img src="./icons/dashboard.png" alt="数据面板" style={{width: 16, height: 16}} />,
+  platforms: <img src="./icons/platforms.png" alt="开放平台" style={{width: 20, height: 20}} />,
+  recharge: <img src="./icons/recharge.png" alt="充值平台" style={{width: 20, height: 20}} />,
+  dashboard: <img src="./icons/dashboard.png" alt="数据面板" style={{width: 20, height: 20}} />,
 }
 
 const favicons: Record<string, string> = {
@@ -46,14 +46,14 @@ const favicons: Record<string, string> = {
 
 const iconLabel: Record<string, React.ReactNode> = {
   liblib: 'Lib', runninghub: 'RH', tapnow: 'TN', chatgpt: 'CG', github: 'GH', gemini: 'GE',
-  txt2img: <img src="./icons/txt2img.png" alt="文生图" style={{width: 16, height: 16}} />,
-  img2img: <img src="./icons/img2img.png" alt="图生图" style={{width: 16, height: 16}} />,
-  history: <img src="./icons/history.png" alt="生成历史" style={{width: 16, height: 16}} />,
-  prompts: <img src="./icons/prompts.png" alt="Prompt管理" style={{width: 16, height: 16}} />,
-  platforms: <img src="./icons/platforms.png" alt="开放平台" style={{width: 16, height: 16}} />,
-  recharge: <img src="./icons/recharge.png" alt="充值平台" style={{width: 16, height: 16}} />,
-  dashboard: <img src="./icons/dashboard.png" alt="数据面板" style={{width: 16, height: 16}} />,
-  accounts: <img src="./icons/accounts.png" alt="常用账号" style={{width: 16, height: 16}} />,
+  txt2img: <img src="./icons/txt2img.png" alt="文生图" style={{width: 20, height: 20}} />,
+  img2img: <img src="./icons/img2img.png" alt="图生图" style={{width: 20, height: 20}} />,
+  history: <img src="./icons/history.png" alt="生成历史" style={{width: 20, height: 20}} />,
+  prompts: <img src="./icons/prompts.png" alt="Prompt管理" style={{width: 20, height: 20}} />,
+  platforms: <img src="./icons/platforms.png" alt="开放平台" style={{width: 20, height: 20}} />,
+  recharge: <img src="./icons/recharge.png" alt="充值平台" style={{width: 20, height: 20}} />,
+  dashboard: <img src="./icons/dashboard.png" alt="数据面板" style={{width: 20, height: 20}} />,
+  accounts: <img src="./icons/accounts.png" alt="常用账号" style={{width: 20, height: 20}} />,
   skyun: 'SK', mitce: 'MC',
 }
 
