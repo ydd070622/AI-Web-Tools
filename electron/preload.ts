@@ -70,4 +70,11 @@ window.electronAPI = {
     ipcRenderer.on('shortcut-trigger', h)
     return () => { ipcRenderer.removeListener('shortcut-trigger', h) }
   },
+
+  webSearch: (query: string) => ipcRenderer.invoke('web-search', query),
+  webFetch: (url: string, maxBytes?: number) => ipcRenderer.invoke('web-fetch', url, maxBytes),
+  fileList: (path: string) => ipcRenderer.invoke('file-list', path),
+  fileRead: (path: string, maxLines?: number) => ipcRenderer.invoke('file-read', path, maxLines),
+  fileWrite: (path: string, content: string) => ipcRenderer.invoke('file-write', path, content),
+  fileEdit: (path: string, search: string, replace: string) => ipcRenderer.invoke('file-edit', path, search, replace),
 }

@@ -55,6 +55,62 @@ export interface ShortcutBindings {
   [keyCombo: string]: string  // "Alt+1" -> "chatgpt"
 }
 
+// ===== Agent Panel Types =====
+export interface AgentProvider {
+  id: string
+  name: string
+  endpoint: string
+  models: string[]
+}
+
+export interface AgentModel {
+  id: string
+  providerId: string
+  apiKey: string
+  modelName: string
+  displayName?: string
+}
+
+export interface AgentMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  timestamp: number
+  /** Tool call metadata (role === 'tool') */
+  toolCallId?: string
+  toolName?: string
+  toolInput?: string
+  toolResult?: string
+  toolStatus?: 'calling' | 'done'
+}
+
+export interface AgentSession {
+  id: string
+  title: string
+  modelId: string
+  messages: AgentMessage[]
+  createdAt: number
+  updatedAt: number
+}
+
+// ===== Agent Tool Types =====
+export interface ToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export type AgentEvent =
+  | { type: 'thinking' }
+  | { type: 'tool_call'; toolCall: ToolCall }
+  | { type: 'tool_result'; toolCallId: string; toolName: string; result: string }
+  | { type: 'text'; content: string }
+  | { type: 'error'; message: string }
+  | { type: 'done' }
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -90,6 +146,12 @@ declare global {
       dsLogin: () => Promise<string | null>
       registerShortcuts: (bindings: Record<string, string>) => Promise<void>
       onShortcutTrigger: (cb: (targetId: string) => void) => () => void
+      webSearch: (query: string) => Promise<Array<{ title: string; snippet: string; url: string; source?: string }>>
+      webFetch: (url: string, maxBytes?: number) => Promise<{ url?: string; title?: string; content?: string; error?: string }>
+      fileList: (path: string) => Promise<{ path?: string; count?: number; items?: Array<{ name: string; isDir: boolean; size?: number; modified: string }>; error?: string }>
+      fileRead: (path: string, maxLines?: number) => Promise<{ path?: string; size?: number; sizeKB?: string; totalLines?: number; content?: string; truncated?: boolean; error?: string }>
+      fileWrite: (path: string, content: string) => Promise<{ path?: string; size?: number; message?: string; error?: string }>
+      fileEdit: (path: string, search: string, replace: string) => Promise<{ path?: string; message?: string; oldLines?: number; newLines?: number; error?: string }>
     }
   }
 }

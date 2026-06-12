@@ -18,6 +18,8 @@ interface SidebarProps {
   onCancelDownload: (id: string) => void
   onClearDownloads: () => void
   onSidebarActivity: () => void
+  agentOpen?: boolean
+  onToggleAgent?: () => void
 }
 
 const favicons: Record<string, string> = {
@@ -32,7 +34,7 @@ const favicons: Record<string, string> = {
   xhs_juguang: './favicons/xhs_juguang.png',
 }
 
-export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onGoHome, onCancelDownload, onClearDownloads, onSidebarActivity }: SidebarProps) {
+export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onGoHome, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
   const makeIcon = (name: string, alt: string) => (
     <img src={`./icons/${name}.png`} alt={alt} style={{width: 24, height: 24}} />
   );

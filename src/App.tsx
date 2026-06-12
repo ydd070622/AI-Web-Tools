@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import WebViewPage from './components/WebViewPage'
+import AgentPanel from './components/AgentPanel'
 import TextToImage from './pages/TextToImage'
 import ImageToImage from './pages/ImageToImage'
 import History from './pages/History'
@@ -46,6 +47,7 @@ export default function App() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [showSettings, setShowSettings] = useState(false)
   const [shortcuts, setShortcuts] = useState<ShortcutBindings>({})
+  const [agentOpen, setAgentOpen] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchEngineId, setSearchEngineId] = useState('baidu')
@@ -100,6 +102,18 @@ export default function App() {
       setActiveId(targetId)
     })
     return unsub
+  }, [])
+
+  // Ctrl+Space to toggle agent panel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.code === 'Space') {
+        e.preventDefault()
+        setAgentOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   const autoCollapseTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -226,6 +240,15 @@ export default function App() {
       <div className="window-titlebar" onMouseDown={onTitleMouseDown}>
         <span className="titlebar-label"><img src="./titlebar-icon.png" alt="" className="titlebar-icon" />AI Web Tools</span>
         <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
+        <button
+          className={`titlebar-agent-btn${agentOpen ? ' active' : ''}`}
+          onClick={() => setAgentOpen(!agentOpen)}
+          title="智能体助手 (Ctrl+Space)"
+        >
+          <span>智能体</span>
+          <span className={`titlebar-agent-dot${agentOpen ? '' : ' off'}`} />
+          <span className="titlebar-agent-key">Ctrl+Space</span>
+        </button>
         <div className="titlebar-btns">
           <button className="traffic-btn traffic-minimize" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</button>
           <button className="traffic-btn traffic-maximize" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</button>
@@ -249,6 +272,8 @@ export default function App() {
           onCancelDownload={cancelDownload}
           onClearDownloads={clearDownloads}
           onSidebarActivity={resetAutoCollapse}
+          agentOpen={agentOpen}
+          onToggleAgent={() => setAgentOpen(!agentOpen)}
         />
 
       <div className="main-content">
@@ -271,6 +296,8 @@ export default function App() {
           {activeId === 'accounts' && <Accounts />}
         </div>
       </div>
+
+        <AgentPanel isOpen={agentOpen} onClose={() => setAgentOpen(false)} />
 
       {showSettings && (
         <Settings models={models} onSave={saveModels} onClose={() => setShowSettings(false)} onNavigate={setActiveId} />
