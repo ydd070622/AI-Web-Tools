@@ -29,6 +29,7 @@ const SHORTCUT_TARGETS: { id: string; label: string }[] = [
   { id: 'dashboard', label: '数据面板' },
   { id: 'accounts', label: '常用账号' },
   { id: 'home', label: '主页' },
+  { id: 'agent-panel', label: '智能体助手' },
 ]
 
 const STORAGE_KEY = 'shortcutBindings'
@@ -42,6 +43,7 @@ const DEFAULT_SHORTCUTS: ShortcutBindings = {
   'Alt+6': 'tapnow',
   'Ctrl+Shift+T': 'txt2img',
   'Ctrl+Shift+I': 'img2img',
+  'Ctrl+Space': 'agent-panel',
 }
 
 // Convert KeyboardEvent to combo string

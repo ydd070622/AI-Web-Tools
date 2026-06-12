@@ -99,21 +99,13 @@ export default function App() {
     const api = window.electronAPI
     if (!api) return
     const unsub = api.onShortcutTrigger((targetId: string) => {
-      setActiveId(targetId)
+      if (targetId === 'agent-panel') {
+        setAgentOpen(prev => !prev)
+      } else {
+        setActiveId(targetId)
+      }
     })
     return unsub
-  }, [])
-
-  // Ctrl+Space to toggle agent panel
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.code === 'Space') {
-        e.preventDefault()
-        setAgentOpen(prev => !prev)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   const autoCollapseTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -185,6 +177,7 @@ export default function App() {
           'Alt+1': 'chatgpt', 'Alt+2': 'github', 'Alt+3': 'liblib',
           'Alt+4': 'runninghub', 'Alt+5': 'gemini', 'Alt+6': 'tapnow',
           'Ctrl+Shift+T': 'txt2img', 'Ctrl+Shift+I': 'img2img',
+          'Ctrl+Space': 'agent-panel',
         }
         if (saved !== null && Array.isArray(saved)) {
           setModels(saved)
