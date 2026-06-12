@@ -242,6 +242,10 @@ async function buildSystemPrompt(): Promise<string> {
     '\n2. 用户问电脑文件 → 用 file_list 列出目录，用 file_read 读取内容' +
     '\n3. 用户要求创建/修改文件 → 用 file_write 或 file_edit' +
     '\n4. 在回答中引用信息来源（标注URL或网站名）' +
+    '\n\n行为规范：' +
+    '\n- 调用工具时直接调用，不要先输出「我来查一下」「让我搜索」之类的预备文字' +
+    '\n- 回答完问题即可，不要主动询问是否需要其他帮助，除非用户明确提出后续需求' +
+    '\n- 保持回复简洁精准' +
     '\n\n重要：你已经知道当前日期和用户所在城市，不要再询问用户这些信息。' +
     '\n用户的桌面路径通常是 C:\\Users\\<用户名>\\Desktop，用户文档路径通常是 C:\\Users\\<用户名>\\Documents。' +
     '\n\n请用中文回复。'
@@ -250,48 +254,55 @@ async function buildSystemPrompt(): Promise<string> {
 
 const MAX_ROUNDS = 5
 
-// ===== LLM API Call (non-streaming, with tool support) =====
-async function callLLM(
-  model: AgentModel,
-  messages: Array<{ role: string; content: string | null; tool_calls?: any[]; tool_call_id?: string }>,
-  tools: typeof TOOL_DEFS | undefined,
-  signal?: AbortSignal,
-): Promise<any> {
-  const endpoint = getProviderEndpoint(model.providerId)
-  if (!endpoint) throw new Error('未找到该提供商的 API 端点')
-
-  const body: Record<string, any> = {
-    model: model.modelName,
-    messages,
-    max_tokens: 4096,
-    temperature: 0.7,
+// ===== Parse SSE stream with tool_call delta support =====
+interface StreamChunk {
+  type: 'content' | 'tool_call_delta' | 'finish'
+  content?: string
+  toolCallDelta?: {
+    index: number
+    id?: string
+    type?: string
+    function?: { name?: string; arguments?: string }
   }
-  if (tools) {
-    body.tools = tools
-    body.tool_choice = 'auto'
+}
+
+async function* parseStreamResponse(response: Response): AsyncGenerator<StreamChunk> {
+  const reader = response.body?.getReader()
+  if (!reader) return
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || !trimmed.startsWith('data:')) continue
+      const data = trimmed.slice(5).trim()
+      if (data === '[DONE]') { yield { type: 'finish' }; return }
+      try {
+        const json = JSON.parse(data)
+        const choice = json.choices?.[0]
+        if (!choice) continue
+
+        const delta = choice.delta
+        if (delta?.content) {
+          yield { type: 'content', content: delta.content }
+        }
+        if (delta?.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            yield { type: 'tool_call_delta', toolCallDelta: tc }
+          }
+        }
+      } catch {}
+    }
   }
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${model.apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal,
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    let msg = `API 错误 (${response.status})`
-    try {
-      const e = JSON.parse(text)
-      msg = e.error?.message || e.message || msg
-    } catch {}
-    throw new Error(msg)
-  }
-
-  return response.json()
 }
 
 // ===== Execute a single tool call =====
@@ -458,41 +469,122 @@ export async function* agentChat(
   yield { type: 'thinking' }
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    let data: any
+    const endpoint = getProviderEndpoint(model.providerId)
+    if (!endpoint) {
+      yield { type: 'error', message: '未找到该提供商的 API 端点' }
+      yield { type: 'done' }
+      return
+    }
+
+    const body: Record<string, any> = {
+      model: model.modelName,
+      messages: history,
+      stream: true,
+      max_tokens: 4096,
+      temperature: 0.7,
+    }
+    if (tools) {
+      body.tools = tools
+      body.tool_choice = 'auto'
+    }
+
+    // Send streaming request
+    let response: Response
     try {
-      data = await callLLM(model, history, tools, signal)
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${model.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
     } catch (e: any) {
       yield { type: 'error', message: e.message }
       yield { type: 'done' }
       return
     }
 
-    const choice = data.choices?.[0]
-    if (!choice) {
-      yield { type: 'error', message: 'LLM 返回空响应' }
+    if (!response.ok) {
+      const text = await response.text()
+      let msg = `API 错误 (${response.status})`
+      try {
+        const e = JSON.parse(text)
+        msg = e.error?.message || e.message || msg
+      } catch {}
+      yield { type: 'error', message: msg }
       yield { type: 'done' }
       return
     }
 
-    const msg = choice.message
-    const finishReason = choice.finish_reason
+    // Parse SSE stream: stream content in real-time, revoke if tool_calls appear
+    let fullContent = ''
+    let hasToolCalls = false
+    let streamedText = false
+    const tcAcc: Map<number, {
+      id?: string; type?: string; function: { name?: string; arguments: string }
+    }> = new Map()
 
-    // Check for tool calls
-    if (msg.tool_calls && msg.tool_calls.length > 0) {
-      // Yield each tool call event
-      for (const tc of msg.tool_calls as ToolCall[]) {
+    try {
+      for await (const chunk of parseStreamResponse(response)) {
+        if (chunk.type === 'content') {
+          fullContent += chunk.content!
+          if (!hasToolCalls) {
+            yield { type: 'text_chunk', content: chunk.content! }
+            streamedText = true
+          }
+        } else if (chunk.type === 'tool_call_delta') {
+          if (!hasToolCalls) {
+            hasToolCalls = true
+            // Revoke any streamed thinking text
+            if (streamedText) {
+              yield { type: 'text_revoke' }
+            }
+          }
+          const tc = chunk.toolCallDelta!
+          const existing = tcAcc.get(tc.index) || { function: { arguments: '' } }
+          if (tc.id) existing.id = tc.id
+          if (tc.type) existing.type = tc.type
+          if (tc.function?.name) existing.function!.name = tc.function.name
+          if (tc.function?.arguments) existing.function!.arguments += tc.function.arguments
+          tcAcc.set(tc.index, existing)
+        }
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') throw e
+      yield { type: 'error', message: e.message }
+      yield { type: 'done' }
+      return
+    }
+
+    if (hasToolCalls) {
+      // Build tool calls from accumulated deltas
+      const toolCalls: ToolCall[] = [...tcAcc.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([_, tc]) => ({
+          id: tc.id || '',
+          type: 'function' as const,
+          function: {
+            name: tc.function?.name || '',
+            arguments: tc.function?.arguments || '',
+          },
+        }))
+
+      // Yield tool_call events
+      for (const tc of toolCalls) {
         yield { type: 'tool_call', toolCall: tc }
       }
 
       // Add assistant message (with tool_calls) to history
       history.push({
         role: 'assistant',
-        content: msg.content || null,
-        tool_calls: msg.tool_calls,
+        content: fullContent || null,
+        tool_calls: toolCalls,
       })
 
       // Execute tools and add results
-      for (const tc of msg.tool_calls as ToolCall[]) {
+      for (const tc of toolCalls) {
         let result: string
         try {
           result = await executeTool(tc, options, signal)
@@ -514,12 +606,12 @@ export async function* agentChat(
       continue
     }
 
-    // No tool calls → final answer
-    if (msg.content) {
-      yield { type: 'text', content: msg.content }
-    } else if (finishReason === 'stop') {
-      // Some models return stop with empty content
-      yield { type: 'text', content: '(模型未返回内容)' }
+    // No tool calls → text was streamed in real-time, just finalize
+    yield { type: 'text_end' }
+
+    if (!fullContent) {
+      yield { type: 'text_chunk', content: '(模型未返回内容)' }
+      yield { type: 'text_end' }
     }
 
     break

@@ -108,6 +108,9 @@ export type AgentEvent =
   | { type: 'tool_call'; toolCall: ToolCall }
   | { type: 'tool_result'; toolCallId: string; toolName: string; result: string }
   | { type: 'text'; content: string }
+  | { type: 'text_chunk'; content: string }
+  | { type: 'text_end' }
+  | { type: 'text_revoke' }
   | { type: 'error'; message: string }
   | { type: 'done' }
 

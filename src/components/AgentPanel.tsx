@@ -265,6 +265,7 @@ export default function AgentPanel({ isOpen, onClose }: { isOpen: boolean; onClo
   const scrollPositions = useRef<Map<string, number>>(new Map())
   const prevActiveSessionId = useRef<string | null>(null)
   const [, setInputTick] = useState(0)
+  const [streamTick, setStreamTick] = useState(0)
 
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const messages = activeSession?.messages || []
@@ -329,24 +330,25 @@ export default function AgentPanel({ isOpen, onClose }: { isOpen: boolean; onClo
     }
   }, [activeSessionId])
 
-  // Auto-scroll to bottom during streaming (new messages arriving)
+  // Auto-scroll to bottom during streaming (new messages + content growth)
   const prevMsgCount = useRef(0)
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container || !activeSessionId) return
 
     const currentCount = messages.length
-    if (currentCount > prevMsgCount.current) {
-      // New message added — check if user is near bottom
+    const newMsgAdded = currentCount > prevMsgCount.current
+    prevMsgCount.current = currentCount
+
+    if (newMsgAdded || isCurrentLoading) {
       const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
-      if (atBottom || isCurrentLoading) {
+      if (atBottom || newMsgAdded) {
         requestAnimationFrame(() => {
           container.scrollTop = container.scrollHeight
         })
       }
     }
-    prevMsgCount.current = currentCount
-  }, [messages.length, isCurrentLoading])
+  }, [messages.length, isCurrentLoading, streamTick])
 
   // Focus input when panel opens
   useEffect(() => {
@@ -502,6 +504,7 @@ export default function AgentPanel({ isOpen, onClose }: { isOpen: boolean; onClo
           }
 
           case 'text': {
+            // Legacy full-text event (kept for compatibility)
             const assistantId = generateId()
             setSessions(prev => prev.map(s =>
               s.id === sid ? {
@@ -512,6 +515,57 @@ export default function AgentPanel({ isOpen, onClose }: { isOpen: boolean; onClo
                 }],
               } : s
             ))
+            break
+          }
+
+          case 'text_chunk': {
+            setSessions(prev => prev.map(s => {
+              if (s.id !== sid) return s
+              const msgs = [...s.messages]
+              const lastMsg = msgs[msgs.length - 1]
+              if (lastMsg && lastMsg.role === 'assistant' && lastMsg.id.startsWith('streaming_')) {
+                // Append to existing streaming message
+                msgs[msgs.length - 1] = { ...lastMsg, content: lastMsg.content + event.content }
+              } else {
+                // Create new streaming message
+                msgs.push({
+                  id: 'streaming_' + generateId(),
+                  role: 'assistant' as const,
+                  content: event.content,
+                  timestamp: Date.now(),
+                })
+              }
+              return { ...s, messages: msgs }
+            }))
+            setStreamTick(t => t + 1)
+            break
+          }
+
+          case 'text_revoke': {
+            // Remove the last streaming message (intermediate thinking text before tool call)
+            setSessions(prev => prev.map(s => {
+              if (s.id !== sid) return s
+              const msgs = [...s.messages]
+              const last = msgs[msgs.length - 1]
+              if (last && last.role === 'assistant' && last.id.startsWith('streaming_')) {
+                msgs.pop()
+              }
+              return { ...s, messages: msgs }
+            }))
+            break
+          }
+
+          case 'text_end': {
+            setSessions(prev => prev.map(s => {
+              if (s.id !== sid) return s
+              const msgs = s.messages.map(m => {
+                if (m.role === 'assistant' && m.id.startsWith('streaming_')) {
+                  return { ...m, id: m.id.replace('streaming_', '') }
+                }
+                return m
+              })
+              return { ...s, messages: msgs }
+            }))
             break
           }
 
