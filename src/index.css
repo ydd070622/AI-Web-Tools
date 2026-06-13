@@ -1844,13 +1844,79 @@ textarea.input-base {
   background: var(--bg-primary); padding: 12px; border-radius: 8px;
   margin: 8px 0; overflow-x: auto; font-size: 12px; border: 1px solid var(--border-color);
 }
-.agent-msg-actions { display: flex; gap: 6px; margin-top: 6px; }
-.agent-msg-action {
-  font-size: 10px; color: var(--text-muted); cursor: pointer;
-  padding: 2px 6px; border-radius: 4px; border: 1px solid transparent;
-  background: none; display: flex; align-items: center; gap: 4px;
+.agent-code-block {
+  position: relative; margin: 8px 0;
 }
-.agent-msg-action:hover { border-color: var(--border-color); color: var(--text-primary); }
+.agent-code-block pre {
+  margin: 0; padding: 12px 60px 12px 12px;
+}
+.agent-code-copy {
+  position: absolute; top: 6px; right: 6px;
+  font-size: 10px; color: var(--text-muted); cursor: pointer;
+  padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);
+  background: var(--bg-tertiary); display: flex; align-items: center; gap: 4px;
+  opacity: 0; transition: opacity 0.15s;
+}
+.agent-code-block:hover .agent-code-copy { opacity: 1; }
+.agent-code-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Prompt Box — text box card style */
+.agent-prompt-box {
+  position: relative;
+  background: var(--bg-primary); border: 1px solid var(--border-color);
+  border-radius: 10px; padding: 12px 14px 46px 14px; margin: 10px 0;
+  min-height: 48px;
+}
+.agent-prompt-label {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  margin-bottom: 6px; letter-spacing: 0.3px;
+}
+.agent-prompt-text {
+  font-size: 12px; line-height: 1.55; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word;
+  font-family: var(--font-mono, 'SF Mono', 'Cascadia Code', monospace);
+}
+.agent-prompt-actions {
+  position: absolute; bottom: 8px; right: 10px;
+  display: flex; gap: 6px;
+}
+.agent-prompt-copy {
+  font-size: 11px; color: var(--text-secondary); cursor: pointer;
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary); display: flex; align-items: center; gap: 4px;
+  transition: all 0.15s;
+}
+.agent-prompt-copy:hover {
+  border-color: var(--accent); color: var(--accent);
+  background: rgba(99,102,241,0.08);
+}
+.agent-prompt-adopt {
+  font-size: 11px; font-weight: 500; color: var(--accent); cursor: pointer;
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: rgba(99,102,241,0.1); display: flex; align-items: center; gap: 4px;
+  transition: all 0.15s;
+}
+.agent-prompt-adopt:hover {
+  background: var(--accent); color: #fff;
+}
+
+.agent-msg-actions { display: flex; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); justify-content: flex-end; }
+.agent-msg-action {
+  font-size: 11px; color: var(--text-secondary); cursor: pointer;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-color);
+  background: var(--bg-secondary); display: flex; align-items: center; gap: 4px;
+  transition: all 0.15s;
+}
+.agent-msg-action:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-card-hover); }
+.agent-msg-adopt-all {
+  font-size: 12px; font-weight: 500; color: var(--accent); cursor: pointer;
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--accent);
+  background: rgba(99,102,241,0.12); display: flex; align-items: center; gap: 5px;
+  transition: all 0.15s;
+}
+.agent-msg-adopt-all:hover { background: var(--accent); color: #fff; }
 
 /* Input Area */
 .agent-input-area {

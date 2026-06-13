@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Download, Copy, Sparkles, Send } from 'lucide-react'
 import { callTextToImage } from '../services/api'
 import { historyService } from '../services/history'
@@ -7,7 +7,7 @@ import type { CustomModel, GenerationResult, AgentContext } from '../types'
 const ratios = ['1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3']
 const resolutions = ['1K', '2K']
 
-export default function TextToImage({ models, onSendToAgent }: { models: CustomModel[]; onSendToAgent?: (ctx: AgentContext) => void }) {
+export default function TextToImage({ models, onSendToAgent, adoptPrompt, onAdoptConsumed }: { models: CustomModel[]; onSendToAgent?: (ctx: AgentContext) => void; adoptPrompt?: { type: 'positive' | 'negative'; text: string } | null; onAdoptConsumed?: () => void }) {
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
   const [ratio, setRatio] = useState('1:1')
@@ -16,6 +16,23 @@ export default function TextToImage({ models, onSendToAgent }: { models: CustomM
   const [modelId, setModelId] = useState(0)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<GenerationResult | null>(null)
+  const consumedRef = useRef(false)
+
+  // Adopt prompt from agent
+  useEffect(() => {
+    if (adoptPrompt && !consumedRef.current) {
+      consumedRef.current = true
+      if (adoptPrompt.type === 'positive') {
+        setPrompt(adoptPrompt.text)
+      } else {
+        setNegativePrompt(adoptPrompt.text)
+      }
+      setTimeout(() => {
+        consumedRef.current = false
+        onAdoptConsumed?.()
+      }, 0)
+    }
+  }, [adoptPrompt, onAdoptConsumed])
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim() || models.length === 0 || !count.trim()) return

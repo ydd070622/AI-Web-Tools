@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AgentModel, AgentMessage, AgentContext } from '../types'
 import { AGENT_PROVIDERS, loadModels, saveModels, streamChat, parseSSEStream, generateId, fetchProviderModels } from '../services/agent'
 import { agentChat } from '../services/agent-loop'
-import { Copy, X, Plus, ChevronDown, History, Trash2, Check, RefreshCw, Loader2 } from 'lucide-react'
+import { Copy, X, Plus, ChevronDown, History, Trash2, Check, RefreshCw, Loader2, Sparkles } from 'lucide-react'
 
 // ===== Add Model Modal (auto-fetch models, multi-select) =====
 function AddModelModal({
@@ -165,19 +165,59 @@ function AddModelModal({
   )
 }
 
-// ===== Copy Button =====
-function CopyButton({ text }: { text: string }) {
+// ===== Code Block with Copy Button =====
+function CodeBlock({ code }: { code: string }) {
   const [copied, setCopied] = useState(false)
   const handle = async () => {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
   return (
-    <button className="agent-msg-action" onClick={handle}>
-      {copied ? <Check size={12} /> : <Copy size={12} />}
-      {copied ? '已复制' : '复制'}
-    </button>
+    <div className="agent-code-block">
+      <pre><code>{code}</code></pre>
+      <button className="agent-code-copy" onClick={handle}>
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+        {copied ? '已复制' : '复制'}
+      </button>
+    </div>
+  )
+}
+
+// ===== Quote Block with Copy Button (styled as text box card) =====
+function QuoteBlock({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  // Detect prompt type from label: negative keywords → negative, everything else → positive
+  const promptType: 'positive' | 'negative' | null = label
+    ? (label.toLowerCase().includes('negative') || label.includes('负向') || label.includes('负面') ? 'negative' : 'positive')
+    : null
+  const handleAdopt = () => {
+    if (promptType) {
+      window.dispatchEvent(new CustomEvent('adopt-prompt', { detail: { type: promptType, text } }))
+    }
+  }
+  return (
+    <div className="agent-prompt-box">
+      {label && <div className="agent-prompt-label">{label}</div>}
+      <div className="agent-prompt-text">{text}</div>
+      <div className="agent-prompt-actions">
+        {promptType && (
+          <button className="agent-prompt-adopt" onClick={handleAdopt} title="采用到文生图">
+            <Sparkles size={14} />
+            采用
+          </button>
+        )}
+        <button className="agent-prompt-copy" onClick={handleCopy}>
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+          {copied ? ' 已复制' : ' 复制'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -213,24 +253,74 @@ function SimpleMarkdown({ content }: { content: string }) {
     <>
       {segments.map((seg, i) => {
         if (seg.type === 'code') {
-          return <pre key={i}><code>{seg.content.trim()}</code></pre>
+          return <CodeBlock key={i} code={seg.content.trim()} />
         }
         const paragraphs = seg.content.split(/\n\n+/)
         return (
           <span key={i}>
-            {paragraphs.map((p, pi) => (
-              <span key={pi}>
-                {pi > 0 && <><br /><br /></>}
-                <span dangerouslySetInnerHTML={{
-                  __html: renderInline(p).replace(/\n/g, '<br/>'),
-                }} />
-              </span>
-            ))}
+            {paragraphs.map((p, pi) => {
+              // Detect blockquote: any line starting with '>'
+              const lines = p.split('\n')
+              const quoteLines = lines.filter(l => l.trim().startsWith('>'))
+              const labelLines = lines.filter(l => {
+                const t = l.trim()
+                return t && !t.startsWith('>') && !t.startsWith('---')
+              })
+              if (quoteLines.length > 0) {
+                const quoteText = quoteLines.map(l => l.replace(/^> ?/, '')).join('\n').trim()
+                const labelRaw = labelLines.map(l => l.trim()).join(' / ')
+                const labelClean = labelRaw.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').trim()
+                return <QuoteBlock key={pi} text={quoteText} label={labelClean || undefined} />
+              }
+              // Detect prompt without '>' prefix: bold label line + plain text lines
+              const boldLabelLine = lines.find(l => /^\*\*.+?：?\*\*$/.test(l.trim()))
+              const textLines = lines.filter(l => {
+                const t = l.trim()
+                return t && !/^\*\*/.test(t) && !t.startsWith('>') && !t.startsWith('---')
+              })
+              if (boldLabelLine && textLines.length > 0 && textLines.some(l => l.trim().length > 20)) {
+                const labelClean = boldLabelLine.trim().replace(/\*\*(.+?)\*\*/g, '$1').trim()
+                const quoteText = textLines.join('\n').trim()
+                return <QuoteBlock key={pi} text={quoteText} label={labelClean || undefined} />
+              }
+              return (
+                <span key={pi}>
+                  {pi > 0 && <><br /><br /></>}
+                  <span dangerouslySetInnerHTML={{
+                    __html: renderInline(p).replace(/\n/g, '<br/>'),
+                  }} />
+                </span>
+              )
+            })}
           </span>
         )
       })}
     </>
   )
+}
+
+// ===== Check if content contains prompt blocks (for "一键采用" button) =====
+function hasPromptBlocks(content: string): boolean {
+  return /\*\*正[向面].*Prompt.*\*\*/m.test(content) || /\*\*负[向面].*Prompt.*\*\*/m.test(content)
+}
+
+// ===== One-click adopt all prompts in a message =====
+function handleAdoptAll(e: React.MouseEvent) {
+  const msgDiv = (e.currentTarget as HTMLElement).closest('.agent-msg') as HTMLElement
+  if (!msgDiv) return
+  const boxes = msgDiv.querySelectorAll<HTMLElement>('.agent-prompt-box')
+  boxes.forEach((box, i) => {
+    const label = box.querySelector('.agent-prompt-label')?.textContent || ''
+    const text = box.querySelector('.agent-prompt-text')?.textContent || ''
+    if (!text) return
+    const type: 'positive' | 'negative' =
+      label.includes('负向') || label.includes('负面') || label.toLowerCase().includes('negative')
+        ? 'negative' : 'positive'
+    // Stagger events so React processes each state update separately
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('adopt-prompt', { detail: { type, text } }))
+    }, i * 50)
+  })
 }
 
 // ===== Session type =====
@@ -761,12 +851,15 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
               )}
               {messages.map(msg => {
                 if (msg.role === 'tool') return null
+                const hasPrompts = hasPromptBlocks(msg.content)
                 return (
                   <div key={msg.id} className={`agent-msg agent-msg-${msg.role}`}>
                     <SimpleMarkdown content={msg.content} />
-                    {msg.role === 'assistant' && msg.content && !msg.content.includes('⏹') && (
+                    {msg.role === 'assistant' && hasPrompts && (
                       <div className="agent-msg-actions">
-                        <CopyButton text={msg.content} />
+                        <button className="agent-msg-adopt-all" onClick={handleAdoptAll}>
+                          <Sparkles size={13} /> 一键采用
+                        </button>
                       </div>
                     )}
                   </div>

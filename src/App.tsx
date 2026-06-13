@@ -53,6 +53,7 @@ export default function App() {
   const [browserUrl, setBrowserUrl] = useState('')
   const [browserContent, setBrowserContent] = useState('')
   const [agentContext, setAgentContext] = useState<AgentContext | null>(null)
+  const [adoptPrompt, setAdoptPrompt] = useState<{ type: 'positive' | 'negative'; text: string } | null>(null)
 
   // Floating card for search / translate results
   type FloatingCard = { kind: 'search' | 'translate'; text: string }
@@ -88,6 +89,17 @@ export default function App() {
     setAgentContext(ctx)
     setAgentOpen(true)
   }
+
+  // Listen for adopt-prompt custom event from QuoteBlock (bypasses React prop chain)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { type, text } = (e as CustomEvent).detail
+      setAdoptPrompt({ type, text })
+      setActiveId('txt2img')
+    }
+    window.addEventListener('adopt-prompt', handler)
+    return () => window.removeEventListener('adopt-prompt', handler)
+  }, [])
 
   const [searchQuery, setSearchQuery] = useState('')
   const [searchEngineId, setSearchEngineId] = useState('baidu')
@@ -399,7 +411,7 @@ export default function App() {
           {vpnSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
-          {activeId === 'txt2img' && <TextToImage models={models} onSendToAgent={handleSendToAgent} />}
+          {activeId === 'txt2img' && <TextToImage models={models} onSendToAgent={handleSendToAgent} adoptPrompt={adoptPrompt} onAdoptConsumed={() => setAdoptPrompt(null)} />}
           {activeId === 'img2img' && <ImageToImage models={models} onSendToAgent={handleSendToAgent} />}
           {activeId === 'history' && <History />}
           {activeId === 'prompts' && <Prompts />}
