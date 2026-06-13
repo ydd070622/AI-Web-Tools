@@ -182,6 +182,9 @@ app.on('web-contents-created', (_e, contents) => {
       else if (sourceUrl.includes('9981store.com')) siteId = 'store9981'
       else if (sourceUrl.includes('skyun.top')) siteId = 'skyun'
       else if (sourceUrl.includes('mitce.net')) siteId = 'mitce'
+      else if (sourceUrl.includes('cephalon.cloud')) siteId = 'duannao'
+      else if (sourceUrl.includes('aigate.cc')) siteId = 'zhisuan'
+      else if (sourceUrl.includes('onethingai.com')) siteId = 'onethingai'
 
       if (siteId) {
         mainWindow?.webContents.send('new-tab', { url, siteId })

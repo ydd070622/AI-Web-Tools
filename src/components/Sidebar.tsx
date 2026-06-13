@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Globe, Brush, Settings, Sun, Moon, ChevronLeft, ChevronRight, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard } from 'lucide-react'
+import { Globe, Brush, Settings, Sun, Moon, ChevronLeft, ChevronRight, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard, Workflow } from 'lucide-react'
 import type { NavItem, DownloadItem } from '../types'
 
 interface SidebarProps {
@@ -32,6 +32,9 @@ const favicons: Record<string, string> = {
   skyun: './favicons/skyun.png',
   mitce: './favicons/mitce.png',
   xhs_juguang: './favicons/xhs_juguang.png',
+  duannao: './favicons/duannao.png',
+  zhisuan: './favicons/zhisuan.png',
+  onethingai: './favicons/onethingai.png',
 }
 
 export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onGoHome, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
@@ -63,9 +66,11 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
     dashboard: makeIcon('dashboard', '数据面板'),
     accounts: makeIcon('accounts', '常用账号'),
     skyun: 'SK', mitce: 'MC',
+    duannao: '端', zhisuan: '智', onethingai: 'AI',
   };
 
   const websites = items.filter(i => i.type === 'website')
+  const comfyui = items.filter(i => i.type === 'comfyui')
   const tools = items.filter(i => i.type === 'tool')
   const aggregators = items.filter(i => i.type === 'aggregator')
   const accounts = items.filter(i => i.type === 'account')
@@ -90,6 +95,17 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
         </div>
         <div className="sidebar-nav-collapsed">
           {websites.map(item => (
+            <div
+              key={item.id}
+              className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`}
+              onClick={() => onSelect(item.id)}
+              title={item.label}
+            >
+              {favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={14} />)}
+            </div>
+          ))}
+          <div className="sidebar-sep" />
+          {comfyui.map(item => (
             <div
               key={item.id}
               className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`}
@@ -227,6 +243,25 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
           </div>
         </div>
         {!collapsedSections.has('websites') && websites.map(item => (
+          <div
+            key={item.id}
+            className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
+            onClick={() => onSelect(item.id)}
+          >
+            <span className="sidebar-item-icon">
+              {favicons[item.id] ? <img src={favicons[item.id]} alt="" className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={16} />)}
+            </span>
+            <span>{item.label}</span>
+          </div>
+        ))}
+
+        <div className="sidebar-section">
+          <div className="sidebar-section-title clickable" onClick={() => onToggleSection('comfyui')}>
+            <Workflow size={14} /> ComfyUI
+            <ChevronDown size={12} className={`chevron ${collapsedSections.has('comfyui') ? 'collapsed' : ''}`} />
+          </div>
+        </div>
+        {!collapsedSections.has('comfyui') && comfyui.map(item => (
           <div
             key={item.id}
             className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}

@@ -29,6 +29,9 @@ const navItems: NavItem[] = [
   { type: 'website', id: 'github', label: 'GitHub', url: 'https://github.com', icon: 'globe' },
   { type: 'website', id: 'gemini', label: 'Gemini', url: 'https://gemini.google.com', icon: 'globe' },
   { type: 'website', id: 'xhs_juguang', label: '小红书', url: '', icon: 'globe' },
+  { type: 'comfyui', id: 'duannao', label: '端脑云', url: 'https://cephalon.cloud/aigc', icon: 'globe' },
+  { type: 'comfyui', id: 'zhisuan', label: '智算云扉', url: 'https://waas.aigate.cc/index', icon: 'globe' },
+  { type: 'comfyui', id: 'onethingai', label: 'OneThingAi', url: 'https://onethingai.com', icon: 'globe' },
   { type: 'tool', id: 'txt2img', label: '文生图', icon: 'tool' },
   { type: 'tool', id: 'img2img', label: '图生图', icon: 'tool' },
   { type: 'tool', id: 'history', label: '生成历史', icon: 'tool' },
@@ -358,6 +361,7 @@ export default function App() {
   const activeItem = navItems.find(i => i.id === activeId)
 
   const websiteSites = navItems.filter(i => i.type === 'website') as (NavItem & { type: 'website' })[]
+  const comfyuiSites = navItems.filter(i => i.type === 'comfyui') as (NavItem & { type: 'comfyui' })[]
   const vpnSites = navItems.filter(i => i.type === 'vpn') as (NavItem & { type: 'vpn' })[]
 
   return (
@@ -408,6 +412,9 @@ export default function App() {
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
           {activeId === 'xhs_juguang' && <XiaoHongShuCards onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />}
+          {comfyuiSites.map(site => (
+            <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
+          ))}
           {vpnSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
