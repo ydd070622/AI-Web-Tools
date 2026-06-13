@@ -272,17 +272,6 @@ function SimpleMarkdown({ content }: { content: string }) {
                 const labelClean = labelRaw.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(.+?)\*/g, '$1').trim()
                 return <QuoteBlock key={pi} text={quoteText} label={labelClean || undefined} />
               }
-              // Detect prompt without '>' prefix: bold label line + plain text lines
-              const boldLabelLine = lines.find(l => /^\*\*.+?：?\*\*$/.test(l.trim()))
-              const textLines = lines.filter(l => {
-                const t = l.trim()
-                return t && !/^\*\*/.test(t) && !t.startsWith('>') && !t.startsWith('---')
-              })
-              if (boldLabelLine && textLines.length > 0 && textLines.some(l => l.trim().length > 20)) {
-                const labelClean = boldLabelLine.trim().replace(/\*\*(.+?)\*\*/g, '$1').trim()
-                const quoteText = textLines.join('\n').trim()
-                return <QuoteBlock key={pi} text={quoteText} label={labelClean || undefined} />
-              }
               return (
                 <span key={pi}>
                   {pi > 0 && <><br /><br /></>}
