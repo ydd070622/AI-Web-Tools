@@ -489,17 +489,16 @@ export default function Dashboard() {
           <div className="api-config-section" style={{ padding: 18, height: 210, marginBottom: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 12, color: 'var(--text-muted)', alignItems: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CreditCard size={14} /> 账户余额</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 10px', borderRadius: 10, background: balance?.isAvailable ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: balance?.isAvailable ? 'var(--success)' : '#ef4444' }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: balance?.isAvailable ? 'var(--success)' : '#ef4444' }} />{balance?.isAvailable ? '可用' : '不足'}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '2px 10px' }} onClick={() => {
+                  if (window.electronAPI) window.electronAPI.openExternal('https://platform.deepseek.com/top_up')
+                }}>💰 充值</button>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '2px 10px', borderRadius: 10, background: balance?.isAvailable ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: balance?.isAvailable ? 'var(--success)' : '#ef4444' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: balance?.isAvailable ? 'var(--success)' : '#ef4444' }} />{balance?.isAvailable ? '可用' : '不足'}
+                </span>
+              </div>
             </div>
             <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 12 }}>{balance ? `${balance.currency === 'USD' ? '$' : '¥'}${balance.totalBalance}` : '查询中…'}</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <button className="btn btn-accent btn-sm" onClick={() => {
-                if (window.electronAPI) window.electronAPI.openExternal('https://platform.deepseek.com/top_up')
-                else window.open('https://platform.deepseek.com/top_up', '_blank')
-              }}>💰 充值</button>
-            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div style={{ background: 'var(--bg-card)', borderRadius: 8, padding: 10, textAlign: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: '#f59e0b', marginBottom: 2 }}><SunMedium size={13} /> 当日</div>
