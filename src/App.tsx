@@ -15,7 +15,7 @@ import Dashboard from './pages/Dashboard'
 import XiaoHongShuCards from './pages/XiaoHongShuCards'
 import type { NavItem, CustomModel, DownloadItem, ShortcutBindings, AgentContext } from './types'
 import type { SearchResult } from './services/multi-search'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, House } from 'lucide-react'
 
 // No default free image generation model (Pollinations AI now requires payment/API key)
 // Users need to configure their own API in Settings
@@ -47,7 +47,7 @@ const navItems: NavItem[] = [
 export default function App() {
   const [activeId, setActiveId] = useState('home')
   const [models, setModels] = useState<CustomModel[]>(defaultModels)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
   const [showSettings, setShowSettings] = useState(false)
@@ -140,7 +140,21 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.className = theme === 'dark' ? 'theme-dark' : 'theme-light'
+    const applyTheme = (t: string) => {
+      if (t === 'system') {
+        const dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.className = dark ? 'theme-dark' : 'theme-light'
+      } else {
+        document.documentElement.className = t === 'dark' ? 'theme-dark' : 'theme-light'
+      }
+    }
+    applyTheme(theme)
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const handler = () => applyTheme('system')
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    }
   }, [theme])
 
   // Keyboard shortcut handler — via main process globalShortcut
@@ -312,7 +326,7 @@ export default function App() {
           const filtered = filterModels(saved)
           setModels(filtered)
         }
-        if (savedTheme === 'light' || savedTheme === 'dark') {
+        if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
           setTheme(savedTheme)
         }
         // Always ensure agent-panel shortcut exists
@@ -330,7 +344,7 @@ export default function App() {
           } catch {}
         }
         const savedTheme = localStorage.getItem('theme')
-        if (savedTheme === 'light' || savedTheme === 'dark') {
+        if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
           setTheme(savedTheme)
         }
       }
@@ -370,6 +384,13 @@ export default function App() {
         <span className="titlebar-label"><img src="./titlebar-icon.png" alt="" className="titlebar-icon" />AI Web Tools</span>
         <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
         <button
+          className="titlebar-home-btn"
+          onClick={() => setActiveId('home')}
+          title="回到主页"
+        >
+          <House size={14} />
+        </button>
+        <button
           className={`titlebar-agent-btn${agentOpen ? ' active' : ''}`}
           onClick={() => setAgentOpen(!agentOpen)}
           title="智能体助手 (Ctrl+Space)"
@@ -385,6 +406,9 @@ export default function App() {
         </div>
       </div>
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {showSettings ? (
+          <Settings models={models} onSave={saveModels} onClose={() => setShowSettings(false)} onNavigate={setActiveId} />
+        ) : (<>
         <Sidebar
           items={navItems}
           activeId={activeId}
@@ -429,7 +453,7 @@ export default function App() {
         </div>
       </div>
 
-        <AgentPanel isOpen={agentOpen} onClose={() => setAgentOpen(false)} currentUrl={browserUrl} currentContent={browserContent} initialContext={agentContext} onContextConsumed={() => setAgentContext(null)} onNavigate={(page) => setActiveId(page)} />
+        <AgentPanel isOpen={agentOpen} onClose={() => setAgentOpen(false)} currentUrl={browserUrl} currentContent={browserContent} currentPage={activeId} initialContext={agentContext} onContextConsumed={() => setAgentContext(null)} onNavigate={(page) => setActiveId(page)} />
 
       {/* Floating Search / Translate Card — draggable mini card */}
       {floatingCard && (
@@ -499,10 +523,8 @@ export default function App() {
           </div>
         </div>
       )}
+      </>)}
 
-      {showSettings && (
-        <Settings models={models} onSave={saveModels} onClose={() => setShowSettings(false)} onNavigate={setActiveId} />
-      )}
       </div>
     </div>
   )

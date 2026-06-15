@@ -27,6 +27,7 @@ const isDev = !app.isPackaged
 Menu.setApplicationMenu(null)
 
 let mainWindow: BrowserWindow | null = null
+let toolsRef: { get closeToTray(): boolean } | null = null
 
 // ===== Window Creation =====
 function createWindow() {
@@ -75,7 +76,7 @@ function createWindow() {
   registerStore()
   registerSearch()
   registerAuth()
-  registerTools(mainWindow)
+  toolsRef = registerTools(mainWindow) || null
   registerTranslate()
 
   // Download management
@@ -88,10 +89,16 @@ function createWindow() {
     }
   })
 
-  // Download protection on close (X button, Alt+F4, etc.)
+  // Download protection + tray close behavior
   let downloadCloseOverride = false
   mainWindow.on('close', (e) => {
     if (downloadCloseOverride) return
+    // Close-to-tray: hide instead of close
+    if (toolsRef?.closeToTray) {
+      e.preventDefault()
+      mainWindow?.hide()
+      return
+    }
     if (activeDownloads.size > 0) {
       e.preventDefault()
       const { dialog } = require('electron')
@@ -239,17 +246,28 @@ app.on('web-contents-created', (_e, contents) => {
 app.whenReady().then(() => {
   // Restore saved theme
   const savedTheme = readConfigSync('theme')
-  if (savedTheme === 'dark' || savedTheme === 'light') {
+  if (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') {
     const { nativeTheme } = require('electron')
     nativeTheme.themeSource = savedTheme
   }
 
   createWindow()
+
+  // Restore close-to-tray on startup
+  const savedCloseToTray = readConfigSync('closeToTray')
+  if (savedCloseToTray && toolsRef) {
+    // Trigger tray setup via IPC
+    mainWindow?.webContents.on('did-finish-load', () => {
+      mainWindow?.webContents.send('restore-close-to-tray', true)
+    })
+  }
+
   if (mainWindow) checkForUpdates(mainWindow)
 })
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  else mainWindow?.show()
 })
 
 app.on('will-quit', () => {

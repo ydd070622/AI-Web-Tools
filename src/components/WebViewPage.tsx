@@ -70,17 +70,17 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
     wv.addEventListener('did-finish-load', () => {
       if (onUrlChange) {
         const url = (wv as any).getURL?.() || tabUrl
+        onUrlChange(url) // Immediately sync URL — content comes async below
         try {
-          // Extract rendered page text for agent context (SPA pages need DOM, not HTTP fetch)
-          ;(wv as any).executeJavaScript('document.body?document.body.innerText:document.documentElement.innerText').then((content: string) => {
-            const trimmed = content?.slice(0, 8000) || ''
-            onUrlChange(url, trimmed ? `页面内容（前8000字符）:\n${trimmed}` : undefined)
-          }).catch(() => {
-            onUrlChange(url)
-          })
-        } catch {
-          onUrlChange(url)
-        }
+          // Extract page title + rendered text for agent context
+          ;(wv as any).executeJavaScript('JSON.stringify({title:document.title,text:document.body?document.body.innerText:document.documentElement.innerText})').then((raw: string) => {
+            let title = ''; let content = ''
+            try { const d = JSON.parse(raw); title = d.title || ''; content = d.text || '' } catch { content = raw || '' }
+            const trimmed = content?.slice(0, 5000) || ''
+            const label = title ? `【页面标题】${title}\n【页面URL】${url}\n【页面文本（前5000字符）】` : `【页面URL】${url}\n【页面文本（前5000字符）】`
+            if (trimmed) onUrlChange(url, `${label}\n${trimmed}\n\n⚠️ 以上是该网页的真实内容，请基于此内容回答，不要依赖你的训练数据猜测。`)
+          }).catch(() => {})
+        } catch {}
       }
       ;(wv as any).executeJavaScript(`
         Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
@@ -100,17 +100,17 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
     // Report URL on SPA navigation (pushState / hash changes) — delayed to let content render
     wv.addEventListener('did-navigate-in-page', ((e: any) => {
       if (onUrlChange && e.url) {
+        onUrlChange(e.url) // Immediately sync URL
         setTimeout(() => {
           try {
-            ;(wv as any).executeJavaScript('document.body?document.body.innerText:document.documentElement.innerText').then((content: string) => {
-              const trimmed = content?.slice(0, 8000) || ''
-              onUrlChange(e.url, trimmed ? `页面内容（前8000字符）:\n${trimmed}` : undefined)
-            }).catch(() => {
-              onUrlChange(e.url)
-            })
-          } catch {
-            onUrlChange(e.url)
-          }
+            ;(wv as any).executeJavaScript('JSON.stringify({title:document.title,text:document.body?document.body.innerText:document.documentElement.innerText})').then((raw: string) => {
+              let title = ''; let content = ''
+              try { const d = JSON.parse(raw); title = d.title || ''; content = d.text || '' } catch { content = raw || '' }
+              const trimmed = content?.slice(0, 5000) || ''
+              const label = title ? `【页面标题】${title}\n【页面URL】${e.url}\n【页面文本（前5000字符）】` : `【页面URL】${e.url}\n【页面文本（前5000字符）】`
+              if (trimmed) onUrlChange(e.url, `${label}\n${trimmed}\n\n⚠️ 以上是该网页的真实内容，请基于此内容回答，不要依赖你的训练数据猜测。`)
+            }).catch(() => {})
+          } catch {}
         }, 1200)
       }
     }) as EventListener)
@@ -173,6 +173,7 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
     const tab = tabs.find(t => t.id === activeId)
     if (!tab) return
 
+    const wasExisting = !!webviewMap.current.get(tab.id)
     let wv = webviewMap.current.get(tab.id)
     if (!wv) {
       wv = createWebview(tab.id, tab.url)
@@ -192,6 +193,21 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
         })
       }
     })
+
+    // When switching back to a previously-loaded page, re-extract content
+    if (wasExisting && wv && onUrlChange) {
+      const url = (wv as any).getURL?.() || tab.url
+      onUrlChange(url) // Immediately sync URL — content comes async below
+      try {
+        ;(wv as any).executeJavaScript('JSON.stringify({title:document.title,text:document.body?document.body.innerText:document.documentElement.innerText})').then((raw: string) => {
+          let title = ''; let content = ''
+          try { const d = JSON.parse(raw); title = d.title || ''; content = d.text || '' } catch { content = raw || '' }
+          const trimmed = content?.slice(0, 5000) || ''
+          const label = title ? `【页面标题】${title}\n【页面URL】${url}\n【页面文本（前5000字符）】` : `【页面URL】${url}\n【页面文本（前5000字符）】`
+          if (trimmed) onUrlChange(url, `${label}\n${trimmed}\n\n⚠️ 以上是该网页的真实内容，请基于此内容回答，不要依赖你的训练数据猜测。`)
+        }).catch(() => {})
+      } catch {}
+    }
 
     if (visible) {
       setTimeout(() => (wv as any).focus?.(), 50)
@@ -213,12 +229,16 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
       if (tab) {
         const wv = webviewMap.current.get(id)
         const url = wv ? ((wv as any).getURL?.() || tab.url) : tab.url
+        onUrlChange(url) // Immediately sync URL
         try {
           if (wv) {
-            ;(wv as any).executeJavaScript('document.body?document.body.innerText:document.documentElement.innerText').then((content: string) => {
-              const trimmed = content?.slice(0, 8000) || ''
-              onUrlChange(url, trimmed ? `页面内容（前8000字符）:\n${trimmed}` : undefined)
-            }).catch(() => { onUrlChange(url) })
+            ;(wv as any).executeJavaScript('JSON.stringify({title:document.title,text:document.body?document.body.innerText:document.documentElement.innerText})').then((raw: string) => {
+              let title = ''; let content = ''
+              try { const d = JSON.parse(raw); title = d.title || ''; content = d.text || '' } catch { content = raw || '' }
+              const trimmed = content?.slice(0, 5000) || ''
+              const label = title ? `【页面标题】${title}\n【页面URL】${url}\n【页面文本（前5000字符）】` : `【页面URL】${url}\n【页面文本（前5000字符）】`
+              if (trimmed) onUrlChange(url, `${label}\n${trimmed}\n\n⚠️ 以上是该网页的真实内容，请基于此内容回答，不要依赖你的训练数据猜测。`)
+            }).catch(() => {})
           } else {
             onUrlChange(url)
           }

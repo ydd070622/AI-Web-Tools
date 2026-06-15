@@ -1,169 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AgentModel, AgentMessage, AgentContext } from '../types'
-import { AGENT_PROVIDERS, loadModels, saveModels, streamChat, parseSSEStream, generateId, fetchProviderModels } from '../services/agent'
+import { AGENT_PROVIDERS, loadModels, streamChat, parseSSEStream, generateId } from '../services/agent'
 import { agentChat } from '../services/agent-loop'
 import { Copy, X, Plus, ChevronDown, History, Trash2, Check, RefreshCw, Loader2, Sparkles } from 'lucide-react'
-
-// ===== Add Model Modal (auto-fetch models, multi-select) =====
-function AddModelModal({
-  isOpen, onClose, onAdd,
-}: {
-  isOpen: boolean
-  onClose: () => void
-  onAdd: (models: AgentModel[]) => void
-}) {
-  const [providerId, setProviderId] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [customModel, setCustomModel] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  // Auto-fetch
-  const [fetchedModels, setFetchedModels] = useState<string[]>([])
-  const [fetching, setFetching] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  const [checkedModels, setCheckedModels] = useState<Set<string>>(new Set())
-
-  const isCustom = providerId === 'custom'
-  const canSave = providerId && apiKey.trim() && (isCustom ? customModel.trim() : checkedModels.size > 0)
-
-  // Auto-fetch models when provider + apiKey are set
-  useEffect(() => {
-    setFetchedModels([]); setFetchError(null); setCheckedModels(new Set())
-    if (!providerId || isCustom || !apiKey.trim()) return
-    let cancelled = false
-    setFetching(true)
-    fetchProviderModels(providerId, apiKey.trim())
-      .then(list => {
-        if (!cancelled) { setFetchedModels(list); setFetching(false) }
-      })
-      .catch(err => {
-        if (!cancelled) { setFetchError(err.message); setFetching(false) }
-      })
-    return () => { cancelled = true }
-  }, [providerId, apiKey, isCustom])
-
-  const toggleModel = (name: string) => {
-    setCheckedModels(prev => {
-      const next = new Set(prev)
-      next.has(name) ? next.delete(name) : next.add(name)
-      return next
-    })
-  }
-
-  const handleAdd = async () => {
-    if (!canSave || saving) return
-    setSaving(true)
-
-    if (isCustom) {
-      onAdd([{
-        id: generateId(), providerId, apiKey: apiKey.trim(),
-        modelName: customModel.trim(), displayName: displayName.trim() || undefined,
-      }])
-    } else {
-      const newModels: AgentModel[] = [...checkedModels].map(name => ({
-        id: generateId(), providerId, apiKey: apiKey.trim(),
-        modelName: name, displayName: displayName.trim() ? `${displayName.trim()} (${name})` : undefined,
-      }))
-      onAdd(newModels)
-    }
-
-    // Reset
-    setProviderId(''); setApiKey(''); setDisplayName(''); setCustomModel('')
-    setFetchedModels([]); setFetchError(null); setCheckedModels(new Set())
-    setSaving(false)
-    onClose()
-  }
-
-  useEffect(() => {
-    if (isOpen) {
-      setProviderId(''); setApiKey(''); setDisplayName(''); setCustomModel('')
-      setFetchedModels([]); setFetchError(null); setCheckedModels(new Set())
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
-
-  return (
-    <div className="agent-modal-overlay" onClick={onClose}>
-      <div className="agent-modal" onClick={e => e.stopPropagation()}>
-        <div className="agent-modal-header">
-          <span>🔧</span>
-          <h3>添加模型</h3>
-          <button onClick={onClose}><X size={16} /></button>
-        </div>
-        <div className="agent-modal-body">
-          <div className="agent-field">
-            <label>模型提供商</label>
-            <select value={providerId} onChange={e => { setProviderId(e.target.value) }}>
-              <option value="">-- 选择提供商 --</option>
-              {AGENT_PROVIDERS.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="agent-field">
-            <label>API 密钥</label>
-            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="输入 API Key 后自动获取模型列表..." />
-            <span className="agent-field-hint">密钥仅本地存储，不会上传到任何服务器</span>
-          </div>
-
-          {/* Non-custom: auto-fetch model list */}
-          {!isCustom && providerId && apiKey.trim() && (
-            <div className="agent-field">
-              <div className="agent-model-list-header">
-                <label>可用模型</label>
-                {fetching ? (
-                  <span className="agent-fetch-status"><Loader2 size={12} className="spinning" /> 获取中...</span>
-                ) : fetchError ? (
-                  <span className="agent-fetch-status agent-fetch-error">⚠️ {fetchError}</span>
-                ) : fetchedModels.length > 0 ? (
-                  <span className="agent-fetch-status">已加载 {fetchedModels.length} 个模型</span>
-                ) : null}
-              </div>
-              {fetchedModels.length > 0 ? (
-                <div className="agent-model-checklist">
-                  {fetchedModels.map(name => (
-                    <label key={name} className="agent-model-check">
-                      <input
-                        type="checkbox"
-                        checked={checkedModels.has(name)}
-                        onChange={() => toggleModel(name)}
-                      />
-                      <span>{name}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : !fetching && !fetchError ? (
-                <span className="agent-field-hint">输入 API Key 后自动获取</span>
-              ) : null}
-            </div>
-          )}
-
-          {/* Custom: manual input */}
-          {isCustom && (
-            <div className="agent-field">
-              <label>模型名称 / ID</label>
-              <input type="text" value={customModel} onChange={e => setCustomModel(e.target.value)} placeholder="如 gpt-3.5-turbo" />
-              <span className="agent-field-hint">输入 OpenAI 兼容的模型 ID</span>
-            </div>
-          )}
-          <div className="agent-field">
-            <label>显示名称（可选）</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder={isCustom ? '如：我的自定义模型' : '如：硅基流动专用、工作合集'} />
-            <span className="agent-field-hint">留空则使用模型名。勾选多个模型时，显示名作为前缀</span>
-          </div>
-        </div>
-        <div className="agent-modal-footer">
-          <button className="agent-btn agent-btn-cancel" onClick={onClose}>取消</button>
-          <button className="agent-btn agent-btn-primary" disabled={!canSave || saving} onClick={handleAdd}>
-            {saving ? '添加中...' : `添加${!isCustom && checkedModels.size > 1 ? ` (${checkedModels.size}个)` : ''}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ===== Code Block with Copy Button =====
 function CodeBlock({ code }: { code: string }) {
@@ -192,10 +31,16 @@ function QuoteBlock({ text, label }: { text: string; label?: string }) {
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
-  // Detect prompt type from label: negative keywords → negative, everything else → positive
-  const promptType: 'positive' | 'negative' | null = label
-    ? (label.toLowerCase().includes('negative') || label.includes('负向') || label.includes('负面') ? 'negative' : 'positive')
-    : null
+  // Detect prompt type from label: only show adopt button for explicit prompt keywords
+  const promptType: 'positive' | 'negative' | null = (() => {
+    if (!label) return null
+    const lowerLabel = label.toLowerCase()
+    if (lowerLabel.includes('negative') || label.includes('负向') || label.includes('负面')) return 'negative'
+    // Only treat as positive prompt if label explicitly mentions prompt-related keywords
+    if (lowerLabel.includes('prompt') || label.includes('提示词') || label.includes('正向') || label.includes('正面')) return 'positive'
+    // Regular blockquote (e.g., 核心定位, 功能说明) — no adopt button
+    return null
+  })()
   const handleAdopt = () => {
     if (promptType) {
       window.dispatchEvent(new CustomEvent('adopt-prompt', { detail: { type: promptType, text } }))
@@ -325,8 +170,8 @@ interface Session {
 }
 
 // ===== Main Panel =====
-export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent, initialContext, onContextConsumed, onNavigate }: {
-  isOpen: boolean; onClose: () => void; currentUrl?: string; currentContent?: string
+export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent, currentPage, initialContext, onContextConsumed, onNavigate }: {
+  isOpen: boolean; onClose: () => void; currentUrl?: string; currentContent?: string; currentPage?: string
   initialContext?: AgentContext | null; onContextConsumed?: () => void
   onNavigate?: (page: string) => void
 }) {
@@ -336,8 +181,6 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
   const [loadingSessions, setLoadingSessions] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [tavilyKey, setTavilyKey] = useState(() => localStorage.getItem('agent_tavily_key') || '')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem('agent_font_size')
@@ -354,6 +197,12 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
   const prevActiveSessionId = useRef<string | null>(null)
   const handleSendRef = useRef<((t?: string) => Promise<void>) | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
+  const currentUrlRef = useRef(currentUrl)
+  const currentContentRef = useRef(currentContent)
+  const currentPageRef = useRef(currentPage)
+  currentUrlRef.current = currentUrl
+  currentContentRef.current = currentContent
+  currentPageRef.current = currentPage
   const [, setInputTick] = useState(0)
   const [streamTick, setStreamTick] = useState(0)
 
@@ -389,9 +238,13 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
     })
   }, [])
 
-  const saveModelsFn = useCallback(async (newModels: AgentModel[]) => {
-    setModels(newModels)
-    await saveModels(newModels)
+  // Reload models when changed from Settings
+  useEffect(() => {
+    const handler = () => {
+      loadModels().then(setModels)
+    }
+    window.addEventListener('agent-models-changed', handler)
+    return () => window.removeEventListener('agent-models-changed', handler)
   }, [])
 
   // Smart scroll: save/restore per session, auto-scroll only during loading
@@ -451,32 +304,6 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
   const setSessionModel = useCallback((sessionId: string, modelId: string | null) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, modelId } : s))
   }, [])
-
-  // Sync model changes to active session
-  useEffect(() => {
-    if (activeSession && !activeSession.modelId && models.length > 0) {
-      setSessionModel(activeSession.id, models[0].id)
-    }
-  }, [models, activeSession, setSessionModel])
-
-  const addModel = useCallback(async (newModels: AgentModel[]) => {
-    const updated = [...models, ...newModels]
-    await saveModelsFn(updated)
-    if (!activeModelId && updated.length > 0 && activeSession) {
-      setSessionModel(activeSession.id, updated[0].id)
-    }
-    setError(null)
-  }, [models, activeModelId, activeSession, saveModelsFn, setSessionModel])
-
-  const deleteModel = useCallback(async (e: React.MouseEvent, modelId: string) => {
-    e.stopPropagation()
-    const updated = models.filter(m => m.id !== modelId)
-    await saveModelsFn(updated)
-    // Update sessions that used this model
-    setSessions(prev => prev.map(s =>
-      s.modelId === modelId ? { ...s, modelId: updated[0]?.id || null } : s
-    ))
-  }, [models, saveModelsFn])
 
   // Session management
   const createSession = useCallback(() => {
@@ -589,8 +416,13 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
 
     const enableTools = sessionSearchEnabled.current.get(sid) ?? true
 
+    // Use refs to always read LATEST page context (prevents stale closure)
+    const ctxUrl = currentUrlRef.current
+    const ctxContent = currentContentRef.current
+    const ctxPage = currentPageRef.current
+
     try {
-      for await (const event of agentChat(activeModel, chatHistory, enableTools, controller.signal, { tavilyApiKey: tavilyKey || undefined, currentUrl, currentContent })) {
+      for await (const event of agentChat(activeModel, chatHistory, enableTools, controller.signal, { tavilyApiKey: localStorage.getItem('agent_tavily_key') || undefined, currentUrl: ctxUrl, currentContent: ctxContent, currentPage: ctxPage })) {
         switch (event.type) {
           case 'thinking':
             break
@@ -950,34 +782,8 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
                           }} />
                           <span>{m.displayName || m.modelName}</span>
                           <span className="agent-model-tag">{getProviderName(m.providerId)}</span>
-                          <span style={{ flex: 1 }} />
-                          <span className="agent-model-delete" onClick={e => deleteModel(e, m.id)} title="删除">
-                            <Trash2 size={11} />
-                          </span>
                         </div>
                       ))}
-                      {models.length > 0 && <div className="agent-model-divider" />}
-                      <div className="agent-model-item add" onClick={() => { setDropdownOpen(false); setModalOpen(true) }}>
-                        ＋ 添加模型
-                      </div>
-                      <div className="agent-model-divider" />
-                      <div className="agent-model-item tavily-key" onClick={e => e.stopPropagation()}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Tavily 搜索 API Key（可选，提升搜索质量）</span>
-                        <input
-                          type="password"
-                          value={tavilyKey}
-                          onChange={e => {
-                            setTavilyKey(e.target.value)
-                            localStorage.setItem('agent_tavily_key', e.target.value)
-                          }}
-                          placeholder="tvly-xxxxxxxxxx"
-                          style={{
-                            width: '100%', padding: '4px 6px', fontSize: 11,
-                            background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-                            borderRadius: 4, color: 'var(--text-primary)', outline: 'none',
-                          }}
-                        />
-                      </div>
                     </div>
                   )}
                 </div>
@@ -993,8 +799,6 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
           </>
         )}
       </div>
-
-      <AddModelModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onAdd={addModel} />
     </div>
   )
 }

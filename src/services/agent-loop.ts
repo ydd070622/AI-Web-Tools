@@ -14,14 +14,20 @@
  */
 
 import type { AgentModel, ToolCall, AgentEvent } from '../types'
-import { getProviderEndpoint } from './agent'
+import { getProviderEndpoint, AGENT_PROVIDERS } from './agent'
 import { searchWeb } from './search'
 
 // ===== Agent Chat Options =====
+
+function getProviderShortName(providerId: string): string {
+  const p = AGENT_PROVIDERS.find(pr => pr.id === providerId)
+  return p ? p.name.split(' ')[0] : providerId
+}
 export interface AgentChatOptions {
   tavilyApiKey?: string
   currentUrl?: string
   currentContent?: string
+  currentPage?: string
 }
 
 // ===== Tavily Search (one-step: search + answer + structured content) =====
@@ -200,9 +206,12 @@ async function detectCity(): Promise<string> {
   // 1. User override from settings (highest priority, VPN-proof)
   try {
     if (window.electronAPI?.getStore) {
+      // 优先读取新的组合城市（省,市,区），回退读旧格式
+      const combined = await window.electronAPI.getStore('preferredCityCombined')
       const preferred = await window.electronAPI.getStore('preferredCity')
-      if (typeof preferred === 'string' && preferred.trim()) {
-        _cachedCity = preferred.trim()
+      const cityName = (typeof combined === 'string' && combined.trim()) ? combined.trim() : (typeof preferred === 'string' && preferred.trim()) ? preferred.trim() : ''
+      if (cityName) {
+        _cachedCity = cityName
         return _cachedCity
       }
     }
@@ -247,7 +256,7 @@ async function detectCity(): Promise<string> {
 }
 
 // ===== Dynamic System Prompt (injects date, city, locale) =====
-async function buildSystemPrompt(): Promise<string> {
+async function buildSystemPrompt(modelName?: string, providerName?: string): Promise<string> {
   const now = new Date()
   const locale = navigator.language || 'zh-CN'
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
@@ -258,6 +267,7 @@ async function buildSystemPrompt(): Promise<string> {
 
   return (
     '你是一个强大的AI助手，运行在桌面应用中，可以直接操作用户的电脑。' +
+    (modelName ? `\n\n你是由 ${providerName || 'AI服务商'} 提供的 **${modelName}** 模型。当用户询问"你是什么模型"、"用的什么大模型"等问题时，直接回答你正在使用的模型名称。` : '') +
     `\n\n当前环境信息：` +
     `\n- 当前日期时间：${dateStr} ${timeStr}` +
     `\n- 用户时区：${tz}` +
@@ -516,14 +526,32 @@ export async function* agentChat(
   // Build full message list with system prompt (if tools enabled)
   const history: Array<{ role: string; content: string | null; tool_calls?: any[]; tool_call_id?: string }> = []
   if (enableTools) {
-    let systemPrompt = await buildSystemPrompt()
+    let systemPrompt = await buildSystemPrompt(model.modelName, getProviderShortName(model.providerId))
     if (options?.currentUrl) {
       if (options?.currentContent) {
-        // Page content already extracted from webview DOM — use it directly
-        systemPrompt += `\n\n用户当前正在浏览的网页: ${options.currentUrl}\n\n该页面的文本内容（已从浏览器渲染后的DOM中提取）:\n${options.currentContent}\n\n请基于以上页面内容直接分析和回答用户的问题。如果页面内容不足以回答，再考虑使用 web_fetch 或 web_search 补充信息。`
+        // Page content already extracted from webview DOM — use it as primary source
+        systemPrompt += `\n\n【用户刚导航到新页面，请以下方当前页面内容为准回答，不要受对话历史中之前页面讨论的影响】\n\n${options.currentContent}`
       } else {
-        // No pre-extracted content — fall back to web_fetch
-        systemPrompt += `\n\n用户当前正在浏览的网页: ${options.currentUrl}\n如果用户的提问与该页面内容相关，请主动使用 web_fetch 抓取该URL内容进行分析和回答。`
+        // No pre-extracted content — mandatory web_fetch
+        systemPrompt += `\n\n【用户刚导航到新页面】当前正在浏览: ${options.currentUrl}\n\n⚠️ 该页面的文本内容暂时无法直接提取（可能正在加载中）。你必须立即使用 web_fetch 工具抓取该URL的页面内容，然后基于抓取结果回答用户问题。不要猜测、不要编造、不要提示用户提供内容——直接抓取。`
+      }
+    } else if (options?.currentPage) {
+      // App page context (React pages, not webview)
+      const pageContexts: Record<string, string> = {
+        dashboard: '用户当前正在查看 **DeepSeek Monitor 数据面板**。该面板显示：账户余额（通过API Key查询DeepSeek余额）、Token用量趋势图（近7天每日Flash/Pro Token消耗）、模型用量卡片（V4 Flash和V4 Pro的Token和费用）、本月Token消耗柱状图、历史月度消费统计。如果用户询问Token消耗、余额、费用等数据，请先检查页面当前显示的数据来回答。如果页面数据不足或你需要实时查询，可以引导用户在设置中配置平台Token（用于用量查询）或API Key（用于余额查询）。\n\n重要：用户可能正在这个数据面板上看着具体数据提问，你应该基于这个上下文来回答问题，而不是跳转页面或乱猜平台。',
+        txt2img: '用户当前正在 **文生图** 页面。该页面用于输入文字提示词生成AI图片。',
+        img2img: '用户当前正在 **图生图** 页面。该页面用于上传参考图+提示词生成AI图片。',
+        prompts: '用户当前正在 **Prompt管理** 页面。该页面用于管理和查看提示词模板。',
+        platforms: '用户当前正在 **开放平台** 页面。该页面列出了各种AI开放平台的快捷入口。',
+        settings: '用户当前正在 **设置** 页面。该页面用于配置应用参数、模型、快捷键等。',
+        accounts: '用户当前正在 **常用账号** 页面。该页面管理常用平台账号信息。',
+        recharge: '用户当前正在 **充值平台** 页面。该页面列出了各种充值平台的快捷入口。',
+        history: '用户当前正在 **生成历史** 页面。该页面展示之前生成的AI图片历史记录。',
+        home: '用户当前在应用 **主页**。',
+      }
+      const ctx = pageContexts[options.currentPage]
+      if (ctx) {
+        systemPrompt += `\n\n${ctx}`
       }
     }
     history.push({ role: 'system', content: systemPrompt })

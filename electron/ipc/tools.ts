@@ -1,7 +1,7 @@
 /**
  * Tools IPC — image ops, shell ops, window control, shortcuts, theme, history images
  */
-import { ipcMain, app, BrowserWindow, dialog, shell, nativeTheme, globalShortcut } from 'electron'
+import { ipcMain, app, BrowserWindow, dialog, shell, nativeTheme, globalShortcut, Tray, Menu, Notification } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -129,6 +129,13 @@ export function registerTools(mainWindow: BrowserWindow | null) {
   })
 
   // ===== Shortcuts =====
+
+  // Register Ctrl+Space immediately — independent of renderer timing
+  const ok = globalShortcut.register('Ctrl+Space', () => {
+      mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
+    })
+  if (!ok) console.warn('[tools] Ctrl+Space registration failed — may be captured by system IME')
+
   ipcMain.handle('register-shortcuts', async (_e, bindings: Record<string, string>) => {
     globalShortcut.unregisterAll()
 
@@ -156,4 +163,56 @@ export function registerTools(mainWindow: BrowserWindow | null) {
       }
     }
   })
+
+  // ===== System: Auto-launch, Tray, Notifications =====
+  let tray: Tray | null = null
+  let closeToTrayEnabled = false
+
+  ipcMain.handle('set-auto-launch', async (_e, enable: boolean) => {
+    app.setLoginItemSettings({ openAtLogin: enable })
+  })
+
+  ipcMain.handle('get-auto-launch', async () => {
+    return app.getLoginItemSettings().openAtLogin
+  })
+
+  ipcMain.handle('set-start-minimized', async (_e, enable: boolean) => {
+    const settings = app.getLoginItemSettings()
+    app.setLoginItemSettings({ openAtLogin: settings.openAtLogin, openAsHidden: enable })
+  })
+
+  ipcMain.handle('get-start-minimized', async () => {
+    return app.getLoginItemSettings().openAsHidden
+  })
+
+  ipcMain.handle('set-close-to-tray', async (_e, enable: boolean) => {
+    closeToTrayEnabled = enable
+    if (enable) {
+      if (!tray) {
+        const iconPath = path.join(__dirname, app.isPackaged ? '../dist/icon.png' : '../public/app-icon.png')
+        tray = new Tray(iconPath)
+        const contextMenu = Menu.buildFromTemplate([
+          { label: '显示窗口', click: () => { mainWindow?.show(); mainWindow?.focus() } },
+          { type: 'separator' },
+          { label: '退出', click: () => { closeToTrayEnabled = false; app.quit() } },
+        ])
+        tray.setToolTip('AI Web Tools')
+        tray.setContextMenu(contextMenu)
+        tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus() })
+      }
+    } else {
+      if (tray) { tray.destroy(); tray = null }
+    }
+  })
+
+  ipcMain.handle('get-close-to-tray', async () => closeToTrayEnabled)
+
+  ipcMain.handle('show-notification', async (_e, title: string, body: string) => {
+    if (Notification.isSupported()) {
+      new Notification({ title, body, icon: path.join(__dirname, app.isPackaged ? '../dist/icon.png' : '../public/app-icon.png') }).show()
+    }
+  })
+
+  // Expose close-to-tray flag for the main close handler
+  return { get closeToTray() { return closeToTrayEnabled } }
 }
