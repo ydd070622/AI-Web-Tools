@@ -177,6 +177,20 @@ const TOOL_DEFS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'query_deepseek_usage',
+      description:
+        '查询 DeepSeek 账户余额和用量数据。当用户询问 DeepSeek 余额、Token 消耗、费用、用量统计时使用。' +
+        '返回：账户余额、今日用量（Token+费用）、当月模型级汇总（V4 Flash/Pro 的Token和费用）、每日明细（近7天每天的 flashTokens/proTokens/totalTokens/totalCost，可回答"昨天/前天/某天用了多少Token"）。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
 ]
 
 // ===== City Detection (IP geolocation, cached) =====
@@ -279,12 +293,16 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n- file_read：读取文件内容（支持文本文件）' +
     '\n- file_write：创建或覆盖写入文件' +
     '\n- file_edit：对文件进行精确的搜索替换编辑' +
+    '\n- navigate_to_page：导航到应用内的指定页面' +
+    '\n- query_deepseek_usage：查询 DeepSeek 账户余额、Token 用量、费用数据（用户问 DeepSeek 余额/用量/费用时优先使用此工具直接回答，不要让用户自己去查看）' +
     '\n\n使用策略：' +
     '\n1. 天气/新闻/实时数据 → 使用 web_search 搜索（搜索时带上正确的日期）。搜索结果会返回 answer 字段（直接答案）和 results 数组（结构化内容），优先使用 answer 字段' +
     '\n2. 用户问电脑文件 → 用 file_list 列出目录，用 file_read 读取内容' +
     '\n3. 用户要求创建/修改文件 → 用 file_write 或 file_edit' +
-    '\n4. 在回答中引用信息来源（标注URL或网站名）' +
+    '\n4. 用户问 DeepSeek 余额/用量/Token/费用 → 只需调用 query_deepseek_usage 工具（会自动跳转到 dashboard），然后基于返回的数据用自然语言输出完整回答（余额、各模型Token、每日费用明细）' +
+    '\n5. 在回答中引用信息来源（标注URL或网站名）' +
     '\n\n行为规范：' +
+    '\n- ⚠️ 重要：当需要同时使用多个工具时，先连续调用所有工具（不要中间输出文字），全部工具返回结果后再一次性输出完整回答。否则工具调用前的文字会被撤销' +
     '\n- 调用工具时直接调用，不要先输出「我来查一下」「让我搜索」之类的预备文字' +
     '\n- 回答完问题即可，不要主动询问是否需要其他帮助，除非用户明确提出后续需求' +
     '\n- 保持回复简洁精准' +
@@ -508,6 +526,163 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
       return JSON.stringify({ success: true, message: `已导航到页面: ${page}`, page })
     }
 
+    case 'query_deepseek_usage': {
+      // Read stored credentials from electron store
+      const api = window.electronAPI
+      if (!api) return JSON.stringify({ error: 'query_deepseek_usage 仅可在桌面环境中使用' })
+
+      const [customModels, platformToken] = await Promise.all([
+        api.getStore('customModels') as Promise<any>,
+        api.getStore('dsPlatformToken') as Promise<any>,
+      ])
+
+      // Extract DeepSeek API key from customModels
+      let apiKey = ''
+      if (Array.isArray(customModels)) {
+        const ds = customModels.find((m: any) => m.name?.toLowerCase().includes('deepseek') || m.modelName?.toLowerCase().includes('deepseek'))
+        if (ds?.apiKey) apiKey = ds.apiKey
+      }
+      const ptToken = typeof platformToken === 'string' ? platformToken : ''
+
+      const result: Record<string, any> = {}
+
+      // 1. Fetch balance (needs apiKey)
+      if (apiKey) {
+        try {
+          const res = await fetch('https://api.deepseek.com/user/balance', {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(10000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const infos = data.balance_infos || []
+            let total = 0, topped = 0
+            for (const i of infos) { total += +i.total_balance; topped += +i.topped_up_balance }
+            result.balance = {
+              currency: infos[0]?.currency || 'CNY',
+              totalBalance: +total.toFixed(2),
+              toppedUpBalance: +topped.toFixed(2),
+              isAvailable: data.is_available ?? total > 0,
+            }
+          } else {
+            result.balanceError = `余额查询失败 (${res.status})`
+          }
+        } catch (e: any) {
+          result.balanceError = `余额查询失败: ${e.message}`
+        }
+      } else {
+        result.balanceError = '未配置 DeepSeek API Key，请在数据看板设置中配置'
+      }
+
+      // 2. Fetch monthly usage (needs platformToken)
+      if (ptToken) {
+        try {
+          const now = new Date()
+          const month = now.getMonth() + 1
+          const year = now.getFullYear()
+          const headers: Record<string, string> = {
+            Authorization: `Bearer ${ptToken}`,
+            'x-app-version': '1.0.0', Accept: '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          }
+
+          const [amountRes, costRes] = await Promise.all([
+            fetch(`https://platform.deepseek.com/api/v0/usage/amount?month=${month}&year=${year}`, { headers, signal: AbortSignal.timeout(10000) }),
+            fetch(`https://platform.deepseek.com/api/v0/usage/cost?month=${month}&year=${year}`, { headers, signal: AbortSignal.timeout(10000) }),
+          ])
+
+          if (amountRes.ok && costRes.ok) {
+            const am = await amountRes.json()
+            const co = await costRes.json()
+
+            // Parse model-level totals
+            const models: Record<string, any> = {}
+            for (const mu of (am?.data?.biz_data?.total || [])) {
+              if (mu.model !== 'deepseek-v4-flash' && mu.model !== 'deepseek-v4-pro') continue
+              let totalTokens = 0, requestCount = 0, cacheHit = 0, cacheMiss = 0, responseTokens = 0
+              for (const e of (mu.usage || [])) {
+                const v = Math.round(+e.amount || 0)
+                switch (e.type) {
+                  case 'REQUEST': requestCount = v; break
+                  case 'PROMPT_CACHE_HIT_TOKEN': cacheHit = v; totalTokens += v; break
+                  case 'PROMPT_CACHE_MISS_TOKEN': cacheMiss = v; totalTokens += v; break
+                  case 'RESPONSE_TOKEN': responseTokens = v; totalTokens += v; break
+                  case 'PROMPT_TOKEN': totalTokens += v; break
+                }
+              }
+              models[mu.model === 'deepseek-v4-flash' ? 'V4 Flash' : 'V4 Pro'] = {
+                totalTokens, requestCount, cacheHitTokens: cacheHit, cacheMissTokens: cacheMiss, responseTokens,
+              }
+            }
+
+            // Parse per-day token data from amount API
+            const daysByDate: Record<string, { flashTokens: number; proTokens: number; totalTokens: number }> = {}
+            for (const d of (am?.data?.biz_data?.days || [])) {
+              let flash = 0, pro = 0, total = 0
+              for (const mu of (d.data || [])) {
+                let tokens = 0
+                for (const e of (mu.usage || [])) {
+                  if (['PROMPT_CACHE_HIT_TOKEN', 'PROMPT_CACHE_MISS_TOKEN', 'RESPONSE_TOKEN', 'PROMPT_TOKEN'].includes(e.type)) {
+                    tokens += Math.round(parseFloat(e.amount) || 0)
+                  }
+                }
+                total += tokens
+                if (mu.model === 'deepseek-v4-flash') flash = tokens
+                else if (mu.model === 'deepseek-v4-pro') pro = tokens
+              }
+              daysByDate[d.date] = { flashTokens: flash, proTokens: pro, totalTokens: total }
+            }
+
+            // Parse cost data
+            const costTotal = co?.data?.biz_data?.[0]
+            let monthCost = 0
+            const costByDate: Record<string, number> = {}
+            if (costTotal) {
+              for (const d of (costTotal.days || [])) {
+                const dayCost = (d.data || []).reduce((s: number, m: any) => s + (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((ss: number, ee: any) => ss + (+ee.amount || 0), 0), 0)
+                costByDate[d.date] = +dayCost.toFixed(4)
+                monthCost += dayCost
+              }
+              // Add model-level costs
+              for (const m of (costTotal.total || [])) {
+                const mc = (m.usage || []).filter((e: any) => e.type !== 'REQUEST').reduce((s: number, e: any) => s + (+e.amount || 0), 0)
+                const key = m.model === 'deepseek-v4-flash' ? 'V4 Flash' : m.model === 'deepseek-v4-pro' ? 'V4 Pro' : null
+                if (key && models[key]) models[key].cost = +mc.toFixed(4)
+              }
+            }
+
+            // Merge token + cost into per-day array
+            const allDates = new Set([...Object.keys(daysByDate), ...Object.keys(costByDate)])
+            const dailyData = Array.from(allDates).sort().map(date => ({
+              date,
+              flashTokens: daysByDate[date]?.flashTokens || 0,
+              proTokens: daysByDate[date]?.proTokens || 0,
+              totalTokens: daysByDate[date]?.totalTokens || 0,
+              totalCost: costByDate[date] || 0,
+            }))
+
+            const today = new Date().toISOString().slice(0, 10)
+            const todayData = dailyData.find(d => d.date === today)
+            result.usage = {
+              month: `${year}-${String(month).padStart(2, '0')}`,
+              monthCost: +monthCost.toFixed(2),
+              today: todayData || null,
+              models,
+              dailyBreakdown: dailyData.slice(-7),  // 近7天每日明细: { date, flashTokens, proTokens, totalTokens, totalCost }
+            }
+          } else {
+            result.usageError = `用量查询失败 (${amountRes.status}/${costRes.status})`
+          }
+        } catch (e: any) {
+          result.usageError = `用量查询失败: ${e.message}`
+        }
+      } else {
+        result.usageError = '未配置用量 Token，请在数据看板设置中登录 DeepSeek 平台获取'
+      }
+
+      return JSON.stringify({ ...result, __autoNavigate: 'dashboard' }, null, 2)
+    }
+
     default:
       return JSON.stringify({ error: `未知工具: ${name}` })
   }
@@ -698,6 +873,19 @@ export async function* agentChat(
 
         // Truncate very long results to save tokens
         const truncated = result.length > 15000 ? result.slice(0, 15000) + '\n...(结果已截断)' : result
+
+        // Check for auto-navigate flag from tools like query_deepseek_usage
+        if (tc.function.name === 'query_deepseek_usage' || result.includes('"__autoNavigate"')) {
+          let navTarget = ''
+          try {
+            const parsed = JSON.parse(result)
+            if (parsed.__autoNavigate) navTarget = String(parsed.__autoNavigate)
+          } catch {}
+          if (navTarget) {
+            yield { type: 'intent', action: 'navigate', page: navTarget }
+          }
+        }
+
         history.push({
           role: 'tool',
           tool_call_id: tc.id,
