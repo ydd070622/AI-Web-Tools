@@ -50,6 +50,7 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
+  const [autoOpenPlatform, setAutoOpenPlatform] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [shortcuts, setShortcuts] = useState<ShortcutBindings>({})
   const [agentOpen, setAgentOpen] = useState(false)
@@ -446,9 +447,9 @@ export default function App() {
           {activeId === 'img2img' && <ImageToImage models={models} onSendToAgent={handleSendToAgent} />}
           {activeId === 'history' && <History />}
           {activeId === 'prompts' && <Prompts />}
-          {activeId === 'platforms' && <Platforms />}
+          {activeId === 'platforms' && <Platforms autoOpenPlatform={autoOpenPlatform} onPlatformOpened={() => setAutoOpenPlatform(null)} />}
           {activeId === 'recharge' && <Recharge />}
-          {activeId === 'dashboard' && <Dashboard onSelect={setActiveId} />}
+          {activeId === 'dashboard' && <Dashboard onSelect={(id) => { setActiveId(id); if (id === 'platforms') setAutoOpenPlatform('deepseek') }} />}
           {activeId === 'accounts' && <Accounts />}
         </div>
       </div>

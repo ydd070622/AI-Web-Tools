@@ -22,7 +22,7 @@ const generateColor = () => {
 
 let tabCounter = 0
 
-export default function Platforms() {
+export default function Platforms({ autoOpenPlatform, onPlatformOpened }: { autoOpenPlatform?: string | null; onPlatformOpened?: () => void }) {
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -79,6 +79,14 @@ export default function Platforms() {
   }, [])
 
   useEffect(() => { loadPlatforms() }, [loadPlatforms])
+
+  // Auto-open platform when navigated from dashboard
+  useEffect(() => {
+    if (autoOpenPlatform && platforms.length > 0) {
+      const p = platforms.find(pl => pl.id === autoOpenPlatform)
+      if (p) { openPlatform(p); onPlatformOpened?.() }
+    }
+  }, [autoOpenPlatform, platforms])
 
   useEffect(() => {
     const unsub = window.electronAPI?.onNewTab((data) => {
