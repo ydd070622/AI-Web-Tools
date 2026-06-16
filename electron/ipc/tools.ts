@@ -130,38 +130,55 @@ export function registerTools(mainWindow: BrowserWindow | null) {
 
   // ===== Shortcuts =====
 
-  // Register Ctrl+Space immediately — independent of renderer timing
-  const ok = globalShortcut.register('Ctrl+Space', () => {
+  // Track previous user-defined bindings for diff-based updates
+  let prevBindings: Record<string, string> = {}
+
+  // Register Ctrl+Space with retry mechanism (max 5 attempts)
+  let shortcutRetries = 0
+  const MAX_RETRIES = 5
+  const registerAgentShortcut = () => {
+    const ok = globalShortcut.register('Ctrl+Space', () => {
       mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
     })
-  if (!ok) console.warn('[tools] Ctrl+Space registration failed — may be captured by system IME')
+    if (!ok && shortcutRetries < MAX_RETRIES) {
+      shortcutRetries++
+      console.warn(`[tools] Ctrl+Space registration failed — retry ${shortcutRetries}/${MAX_RETRIES} in 2s...`)
+      setTimeout(registerAgentShortcut, 2000)
+    } else if (ok) {
+      shortcutRetries = 0
+      console.log('[tools] Ctrl+Space registered successfully')
+    } else {
+      console.error('[tools] Ctrl+Space registration failed after all retries — check system IME settings')
+    }
+  }
+  registerAgentShortcut()
 
   ipcMain.handle('register-shortcuts', async (_e, bindings: Record<string, string>) => {
-    globalShortcut.unregisterAll()
+    // Diff-based update: only unregister removed/changed shortcuts, never touch Ctrl+Space or DevTools
+    const oldKeys = Object.keys(prevBindings)
+    const newKeys = Object.keys(bindings)
 
-    // Always register DevTools shortcuts
-    globalShortcut.register('F12', () => {
-      mainWindow?.webContents.toggleDevTools()
-    })
-    globalShortcut.register('CommandOrControl+Shift+I', () => {
-      mainWindow?.webContents.toggleDevTools()
-    })
-
-    // Permanent agent shortcut (not user-configurable)
-    globalShortcut.register('Ctrl+Space', () => {
-      mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
-    })
-
-    // Register user-defined shortcuts
-    for (const [combo, targetId] of Object.entries(bindings)) {
-      try {
-        globalShortcut.register(combo, () => {
-          mainWindow?.webContents.send('shortcut-trigger', targetId)
-        })
-      } catch (e) {
-        console.error('Failed to register shortcut:', combo, e)
+    // Unregister shortcuts that were removed or changed
+    for (const combo of oldKeys) {
+      if (!newKeys.includes(combo) || prevBindings[combo] !== bindings[combo]) {
+        try { globalShortcut.unregister(combo) } catch {}
       }
     }
+
+    // Register new or changed shortcuts
+    for (const [combo, targetId] of Object.entries(bindings)) {
+      if (!oldKeys.includes(combo) || prevBindings[combo] !== targetId) {
+        try {
+          globalShortcut.register(combo, () => {
+            mainWindow?.webContents.send('shortcut-trigger', targetId)
+          })
+        } catch (e) {
+          console.error('Failed to register shortcut:', combo, e)
+        }
+      }
+    }
+
+    prevBindings = { ...bindings }
   })
 
   // ===== System: Auto-launch, Tray, Notifications =====
