@@ -454,6 +454,8 @@ export default function App() {
         </div>
       </div>
 
+        </>)}
+
         <AgentPanel isOpen={agentOpen} onClose={() => setAgentOpen(false)} currentUrl={browserUrl} currentContent={browserContent} currentPage={activeId} initialContext={agentContext} onContextConsumed={() => setAgentContext(null)} onNavigate={(page) => setActiveId(page)} />
 
       {/* Floating Search / Translate Card — draggable mini card */}
@@ -524,7 +526,6 @@ export default function App() {
           </div>
         </div>
       )}
-      </>)}
 
       </div>
     </div>
