@@ -118,7 +118,7 @@ if (collapsed) {
         <div className="sidebar-sep" />
         {comfyuiPageItem && (
           <div key={comfyuiPageItem.id} className={`sidebar-icon-item ${activeId === comfyuiPageItem.id ? 'active' : ''}`} onClick={() => onSelect(comfyuiPageItem.id)} title={comfyuiPageItem.label}>
-            <img src="./favicons/duannao.png" alt="" className="sidebar-icon-img" />
+            <img src="./icons/comfyui.png" alt="" className="sidebar-icon-img" />
           </div>
         )}
         {imageWorkshopItems.map(item => (
@@ -250,7 +250,7 @@ if (collapsed) {
             className={`sidebar-item ${activeId === comfyuiPageItem.id ? 'active' : ''}`}
             onClick={() => onSelect(comfyuiPageItem.id)}
           >
-            <span className="sidebar-item-icon"><img src="./favicons/duannao.png" alt="" className="sidebar-icon-img" /></span>
+            <span className="sidebar-item-icon"><img src="./icons/comfyui.png" alt="" className="sidebar-icon-img" /></span>
             <span>{comfyuiPageItem.label}</span>
           </div>
         )}
