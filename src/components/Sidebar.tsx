@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Globe, Brush, Settings, Sun, Moon, ChevronRight, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard, Workflow } from 'lucide-react'
+import { Globe, Brush, Settings, Sun, Moon, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard, Workflow } from 'lucide-react'
 import type { NavItem, DownloadItem } from '../types'
 
 interface SidebarProps {
@@ -12,7 +12,6 @@ interface SidebarProps {
   expandDownloads?: boolean
   onSelect: (id: string) => void
   onToggleTheme: () => void
-  onToggleCollapse: () => void
   onOpenSettings: () => void
   onToggleSection: (sectionId: string) => void
   onCancelDownload: (id: string) => void
@@ -37,7 +36,7 @@ const favicons: Record<string, string> = {
   onethingai: './favicons/onethingai.png',
 }
 
-export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
+export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onToggleTheme, onOpenSettings, onToggleSection, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
   const makeIcon = (name: string, alt: string) => (
     <img src={`./icons/${name}.png`} alt={alt} style={{width: 24, height: 24}} />
   );
@@ -99,9 +98,6 @@ const comfyuiPageItem = items.find(i => i.type === 'comfyui-page')
 if (collapsed) {
   return (
     <div className="sidebar sidebar-collapsed" onMouseMove={onSidebarActivity} onMouseEnter={onSidebarActivity}>
-      <div className="sidebar-collapse-toggle" onClick={onToggleCollapse} title="展开侧栏">
-        <ChevronRight size={14} />
-      </div>
       <div className="sidebar-nav-collapsed">
         {websites.map(item => (
           <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => onSelect(item.id)} title={item.label}>

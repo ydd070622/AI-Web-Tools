@@ -181,24 +181,6 @@ body {
 }
 
 /* Floating sidebar toggle (visible when sidebar collapsed) */
-.sidebar-collapse-toggle {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--text-muted);
-  -webkit-app-region: no-drag;
-  flex-shrink: 0;
-  position: relative;
-}
-.sidebar-collapse-toggle:hover {
-  background: var(--bg-card-hover);
-  color: var(--text-primary);
-}
-
 .sidebar-section {
   -webkit-app-region: no-drag;
 }

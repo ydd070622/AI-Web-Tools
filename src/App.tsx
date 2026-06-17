@@ -451,7 +451,6 @@ export default function App() {
           expandDownloads={expandDownloads > 0}
           onSelect={setActiveId}
           onToggleTheme={toggleTheme}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           onOpenSettings={() => setShowSettings(true)}
           onToggleSection={toggleSection}
           onCancelDownload={cancelDownload}
