@@ -454,7 +454,6 @@ export default function App() {
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           onOpenSettings={() => setShowSettings(true)}
           onToggleSection={toggleSection}
-          onGoHome={() => setActiveId('home')}
           onCancelDownload={cancelDownload}
           onClearDownloads={clearDownloads}
           onSidebarActivity={resetAutoCollapse}

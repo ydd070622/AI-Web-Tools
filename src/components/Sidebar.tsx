@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Globe, Brush, Settings, Sun, Moon, ChevronLeft, ChevronRight, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard, Workflow } from 'lucide-react'
+import { Globe, Brush, Settings, Sun, Moon, ChevronRight, Wrench, Layers, CreditCard, Wifi, User, ChevronDown, Sparkles, Images, HistoryIcon, LayoutGrid, Wallet, Contact, Download, FolderOpen, LayoutDashboard, Workflow } from 'lucide-react'
 import type { NavItem, DownloadItem } from '../types'
 
 interface SidebarProps {
@@ -15,7 +15,6 @@ interface SidebarProps {
   onToggleCollapse: () => void
   onOpenSettings: () => void
   onToggleSection: (sectionId: string) => void
-  onGoHome: () => void
   onCancelDownload: (id: string) => void
   onClearDownloads: () => void
   onSidebarActivity: () => void
@@ -38,7 +37,7 @@ const favicons: Record<string, string> = {
   onethingai: './favicons/onethingai.png',
 }
 
-export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onGoHome, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
+export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onToggleTheme, onToggleCollapse, onOpenSettings, onToggleSection, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
   const makeIcon = (name: string, alt: string) => (
     <img src={`./icons/${name}.png`} alt={alt} style={{width: 24, height: 24}} />
   );
@@ -188,13 +187,7 @@ if (collapsed) {
 }
 
   return (
-    <div className="sidebar" onMouseMove={onSidebarActivity} onMouseEnter={onSidebarActivity}>
-      <div className="sidebar-header">
-        <div className="sidebar-collapse-toggle" onClick={onToggleCollapse} title="收起侧栏">
-          <ChevronLeft size={14} />
-        </div>
-      </div>
-
+      <div className="sidebar" onMouseMove={onSidebarActivity} onMouseEnter={onSidebarActivity}>
       <div className="sidebar-nav">
         <div className="sidebar-section">
           <div className="sidebar-section-title clickable" onClick={() => onToggleSection('websites')}>

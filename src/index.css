@@ -180,30 +180,6 @@ body {
   user-select: none;
 }
 
-.sidebar-header {
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sidebar-header-title {
-  background: linear-gradient(135deg, #818cf8, #a78bfa, #c4b5fd);
-  border-radius: 8px;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: opacity .15s;
-}
-.sidebar-header-title:hover { opacity: 0.85; }
-
-.sidebar-header h1 {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.25);
-  margin: 0;
-}
-
 /* Floating sidebar toggle (visible when sidebar collapsed) */
 .sidebar-collapse-toggle {
   width: 36px;
