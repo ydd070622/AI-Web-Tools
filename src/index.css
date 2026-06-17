@@ -208,11 +208,7 @@ body {
 .sidebar-float-tab {
   position: absolute;
   left: 0; top: 50%; transform: translateY(-50%);
-  width: 28px; height: 52px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-left: none;
-  border-radius: 0 8px 8px 0;
+  width: 20px; height: 28px;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   z-index: 10;
