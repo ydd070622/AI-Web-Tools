@@ -1,8 +1,8 @@
-# AI Web Tools
+# LingWorks
 
 > 一款基于 Electron + React 的桌面端 AI 工具箱，集成 20+ AI 平台入口、嵌入式智能体助手、Comfyui 云平台管理、DeepSeek 数据监控等功能。
 
-![Version](https://img.shields.io/badge/version-3.2.7-blue) ![Platform](https://img.shields.io/badge/platform-Windows-green) ![License](https://img.shields.io/badge/license-MIT-yellow)
+![Version](https://img.shields.io/badge/version-3.2.8-blue) ![Platform](https://img.shields.io/badge/platform-Windows-green) ![License](https://img.shields.io/badge/license-MIT-yellow)
 
 ## 核心亮点
 
@@ -96,21 +96,21 @@
 
 ### 从源码构建
 
-`ash
+```bash
 git clone https://github.com/ydd070622/AI-Web-Tools.git
 cd AI-Web-Tools
 npm install
 npm run dev     # 启动开发环境
 npm run build   # 构建生产版本
 npm run build:win  # 打包 Windows 安装包
-`
+```
 
 安装包输出目录：release/
 
 ## 项目结构
 
-`
-AI_Web_Tools/
+```
+LingWorks/
   electron/              # Electron 主进程
     main.ts              # 主进程入口
     preload.ts           # 预加载脚本
@@ -136,7 +136,7 @@ AI_Web_Tools/
     favicons/            # 平台图标
     icons/               # 功能图标
   build/                 # 打包资源
-`
+```
 
 ## 许可
 

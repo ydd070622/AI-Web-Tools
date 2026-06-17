@@ -406,7 +406,7 @@ export default function App() {
   return (
     <div className={`app-layout${isMaximized ? '' : ' app-rounded'}`}>
       <div className="window-titlebar" onMouseDown={onTitleMouseDown}>
-        <span className="titlebar-label"><img src="./titlebar-icon.png" alt="" className="titlebar-icon" />AI Web Tools</span>
+        <span className="titlebar-label"><img src="./titlebar-icon.png" alt="" className="titlebar-icon" />LingWorks</span>
        <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
         <button
           className="titlebar-home-btn"

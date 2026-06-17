@@ -213,7 +213,7 @@ export function registerTools(mainWindow: BrowserWindow | null) {
           { type: 'separator' },
           { label: '退出', click: () => { closeToTrayEnabled = false; app.quit() } },
         ])
-        tray.setToolTip('AI Web Tools')
+        tray.setToolTip('LingWorks')
         tray.setContextMenu(contextMenu)
         tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus() })
       }

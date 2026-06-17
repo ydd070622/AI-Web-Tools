@@ -39,7 +39,7 @@ export async function checkForUpdates(mainWindow: BrowserWindow) {
     if (result.response !== 0) return
 
     const tmpDir = app.getPath('temp')
-    const fileName = `AI Web Tools Setup ${remoteVersion}.exe`
+    const fileName = `LingWorks Setup ${remoteVersion}.exe`
     const filePath = path.join(tmpDir, fileName)
 
     const downloadWin = new BrowserWindow({

@@ -1,6 +1,6 @@
 {
   "name": "ai-web-tools",
-  "version": "3.2.7",
+  "version": "3.2.8",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -28,8 +28,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "ai-web-tools",
-    "productName": "AI Web Tools",
+    "appId": "lingworks",
+    "productName": "LingWorks",
     "directories": {
       "output": "release"
     },

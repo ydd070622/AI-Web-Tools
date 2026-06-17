@@ -578,7 +578,7 @@ export default function Home({ onSelect, searchQuery, searchEngineId, searchUrl,
         <div className="home-bg-noise" />
       </div>
       <div className="home-content">
-        <h1 className="home-title">AI Web Tools</h1>
+        <h1 className="home-title">LingWorks</h1>
         <p className="home-subtitle">所有 AI 工具，一站汇聚</p>
         <div className="home-search-wrap">
           <input

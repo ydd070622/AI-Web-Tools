@@ -513,7 +513,7 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
                   <div className="setting-row">
                     <div>
                       <div className="setting-row-label">开机自动启动</div>
-                      <div className="setting-row-desc">登录系统时自动启动 AI Web Tools</div>
+                      <div className="setting-row-desc">登录系统时自动启动 LingWorks</div>
                     </div>
                     <div
                       className={`settings-toggle${autoLaunch ? ' on' : ''}`}
@@ -969,7 +969,7 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
             {activeTab === 'about' && (
               <div className="about-section">
                 <div className="about-version">v{__APP_VERSION__}</div>
-                <div className="about-desc">AI Web Tools — 多平台 AI 工具聚合客户端</div>
+                <div className="about-desc">LingWorks — 多平台 AI 工具聚合客户端</div>
                 <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
                   <div className="setting-row" style={{ width: '100%', maxWidth: 400 }}>
                     <div>
