@@ -133,17 +133,24 @@ export function registerTools(mainWindow: BrowserWindow | null) {
   // Track previous user-defined bindings for diff-based updates
   let prevBindings: Record<string, string> = {}
 
-  // Register Ctrl+Space with retry mechanism (max 5 attempts)
+  // Track Ctrl+Space retry timer so we can clear it on quit
+  let agentShortcutTimer: NodeJS.Timeout | null = null
+
+  // Register Ctrl+Space with retry mechanism (max 5 attempts).
+  // Default action 'agent-panel' is used until the renderer pushes its bindings.
   let shortcutRetries = 0
   const MAX_RETRIES = 5
+  let agentShortcutAction = 'agent-panel'
   const registerAgentShortcut = () => {
+    agentShortcutTimer = null
+    // Re-register: register() overwrites previous callback for same accelerator
     const ok = globalShortcut.register('Ctrl+Space', () => {
-      mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
+      mainWindow?.webContents.send('shortcut-trigger', agentShortcutAction)
     })
     if (!ok && shortcutRetries < MAX_RETRIES) {
       shortcutRetries++
       console.warn(`[tools] Ctrl+Space registration failed — retry ${shortcutRetries}/${MAX_RETRIES} in 2s...`)
-      setTimeout(registerAgentShortcut, 2000)
+      agentShortcutTimer = setTimeout(registerAgentShortcut, 2000)
     } else if (ok) {
       shortcutRetries = 0
       console.log('[tools] Ctrl+Space registered successfully')
@@ -155,8 +162,7 @@ export function registerTools(mainWindow: BrowserWindow | null) {
 
   ipcMain.handle('register-shortcuts', async (_e, bindings: Record<string, string>) => {
     // Diff-based update: only unregister removed/changed shortcuts.
-    // Skip Ctrl+Space in unregistration — it's handled by registerAgentShortcut (with retry),
-    // but still try to register it here as a fallback in case the retry hasn't succeeded yet.
+    // Ctrl+Space is special — handled separately below so user-configured action takes effect.
     const oldKeys = Object.keys(prevBindings)
     const newKeys = Object.keys(bindings).filter(k => k !== 'Ctrl+Space')
 
@@ -186,21 +192,28 @@ export function registerTools(mainWindow: BrowserWindow | null) {
       }
     }
 
-    // Always try to register Ctrl+Space as a fallback (registerAgentShortcut is primary)
+    // Ctrl+Space: update action atomically; re-register so latest user binding takes effect.
+    // (globalShortcut.register overwrites the previous callback for the same accelerator.)
     if (bindings['Ctrl+Space']) {
+      agentShortcutAction = bindings['Ctrl+Space']
       try {
         const ok = globalShortcut.register('Ctrl+Space', () => {
-          mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
+          mainWindow?.webContents.send('shortcut-trigger', agentShortcutAction)
         })
         if (ok) {
-          console.log('[tools] Ctrl+Space fallback registration succeeded via register-shortcuts')
+          console.log(`[tools] Ctrl+Space → ${agentShortcutAction}`)
         }
-      } catch (e) {
+      } catch {
         // Silent — registerAgentShortcut has its own retry
       }
     }
 
     prevBindings = { ...bindings }
+  })
+
+  // Clean up retry timer on quit
+  app.on('will-quit', () => {
+    if (agentShortcutTimer) { clearTimeout(agentShortcutTimer); agentShortcutTimer = null }
   })
 
   // ===== System: Auto-launch, Tray, Notifications =====

@@ -89,7 +89,7 @@ export default function Recharge({ resetKey }: { resetKey?: number }) {
     wv.addEventListener('did-finish-load', () => {
       ;(wv as any).executeJavaScript(`
         Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
-        Object.defineProperty(navigator,'plugins',{get:function(){return {length:3,item:function(){return null},namedItem:function(){return null},refresh:function(){return false}}});
+        Object.defineProperty(navigator,'plugins',{get:function(){return {length:3,item:function(){return null},namedItem:function(){return null},refresh:function(){return false}}}});
         Object.defineProperty(navigator,'languages',{get:function(){return ['zh-CN','zh','en']}});
         window.open=function(u){if(u)window.location.href=u;return null};
         document.addEventListener('click',function(e){
@@ -133,7 +133,11 @@ export default function Recharge({ resetKey }: { resetKey?: number }) {
   }
 
   const switchTab = (id: string) => setActiveId(id)
-  const backToGrid = () => setActiveId(null)
+  const backToGrid = () => {
+    setActiveId(null)
+    setTabs([])
+    setTranslatedTabs(new Set())
+  }
 
   // Re-clicking sidebar "充值平台" triggers back to grid
   useEffect(() => {

@@ -9,7 +9,7 @@ interface SidebarProps {
   collapsed: boolean
   collapsedSections: Set<string>
   downloads: DownloadItem[]
-  expandDownloads?: boolean
+  expandDownloads?: number
   onSelect: (id: string) => void
   onReselect?: (id: string) => void
   onToggleTheme: () => void
@@ -91,9 +91,9 @@ const comfyuiPageItem = items.find(i => i.type === 'comfyui-page')
   const hasDownloads = downloads.length > 0
   const [showDlFlyout, setShowDlFlyout] = useState(false)
 
-  // Auto-expand download panel when downloads complete
+  // Auto-expand download panel when downloads complete (timestamp triggers re-fire)
   useEffect(() => {
-    if (expandDownloads) setShowDlFlyout(true)
+    if (expandDownloads && expandDownloads > 0) setShowDlFlyout(true)
   }, [expandDownloads])
 
   useEffect(() => {

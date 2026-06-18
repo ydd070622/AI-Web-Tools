@@ -159,10 +159,11 @@ export default function App() {
     autoCollapseTimer.current = setTimeout(() => setSidebarCollapsed(true), 10000)
   }, [])
 
+  // Reset 10s idle timer whenever sidebar expands (manual toggle or initial mount)
   useEffect(() => {
-    resetAutoCollapse()
+    if (!sidebarCollapsed) resetAutoCollapse()
     return () => clearTimeout(autoCollapseTimer.current)
-  }, [resetAutoCollapse])
+  }, [sidebarCollapsed, resetAutoCollapse])
 
   useEffect(() => {
     const applyTheme = (t: string) => {
@@ -453,7 +454,7 @@ export default function App() {
           collapsed={sidebarCollapsed}
           collapsedSections={collapsedSections}
           downloads={downloads}
-          expandDownloads={expandDownloads > 0}
+          expandDownloads={expandDownloads}
           onSelect={setActiveId}
           onReselect={(id) => {
             if (id === 'platforms') setPlatformResetKey(k => k + 1)
