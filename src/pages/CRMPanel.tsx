@@ -190,6 +190,11 @@ export default function CRMPanel() {
     persist({ ...data, customers: data.customers.filter(c => c.id !== id) })
   }, [data, persist])
 
+  const deleteCusts = useCallback((ids: string[]) => {
+    if (!confirm(`确定删除选中的 ${ids.length} 位客户？`)) return
+    persist({ ...data, customers: data.customers.filter(c => !ids.includes(c.id)) })
+  }, [data, persist])
+
   const moveCust = useCallback((id: string, newStage: string) => {
     const upd: Partial<Customer> = { stage: newStage as Customer['stage'] }
     if (newStage === 'closed') {
@@ -224,7 +229,7 @@ export default function CRMPanel() {
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, moveCust, updateNote, addNote, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setTab }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setTab }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
@@ -298,6 +303,7 @@ interface SharedProps {
   updateCust: (id: string, upd: Partial<Customer>) => void
   addCust: (cust: Partial<Customer>) => void
   deleteCust: (id: string) => void
+  deleteCusts: (ids: string[]) => void
   moveCust: (id: string, stage: string) => void
   updateNote: (id: string, upd: Partial<Note>) => void
   addNote: (note: Partial<Note>) => void
@@ -418,9 +424,11 @@ function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, lea
 }
 
 // ==================== 2. Customer Page ====================
-function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterNoteId, setFilterNoteId, enrichCust, moveCust }: SharedProps) {
+function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterNoteId, setFilterNoteId, enrichCust, moveCust, deleteCusts }: SharedProps) {
   const [search, setSearch] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const customers = data.customers.filter(c => c.stage !== 'closed').map(enrichCust)
 
@@ -459,7 +467,19 @@ function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterN
             <button className={`crm-view-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>列表</button>
             <button className={`crm-view-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => setViewMode('kanban')}>看板</button>
           </div>
-          <button className="crm-btn-primary" onClick={() => onAdd('lead')}><Plus size={14} /> 添加客户</button>
+          {batchMode ? (
+            <>
+              <button className="crm-btn-danger-outline" onClick={() => { if (selectedIds.size > 0) { deleteCusts(Array.from(selectedIds)); setSelectedIds(new Set()); setBatchMode(false) } }} disabled={selectedIds.size === 0}>
+                删除选中 ({selectedIds.size})
+              </button>
+              <button className="crm-btn-ghost" onClick={() => { setBatchMode(false); setSelectedIds(new Set()) }}>取消</button>
+            </>
+          ) : (
+            <>
+              <button className="crm-btn-ghost" onClick={() => { setBatchMode(true); setViewMode('table') }}>管理</button>
+              <button className="crm-btn-primary" onClick={() => onAdd('lead')}><Plus size={14} /> 添加客户</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -468,6 +488,7 @@ function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterN
           <table className="crm-table">
             <thead>
               <tr>
+                {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
                 <th style={{ width: 140 }}>客户</th>
                 <th style={{ width: 130 }}>来源</th>
                 <th style={{ width: 80 }}>阶段</th>
@@ -482,8 +503,10 @@ function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterN
                 const stage = STAGES.find(s => s.id === c.stage)
                 const fu = fuDisplay(c.followUpDate || null)
                 const [g1, g2] = avatarGrad(c.name)
+                const toggleSel = (id: string) => { const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedIds(next) }
                 return (
-                  <tr key={c.id} onClick={() => setEditingCustomer(c)}>
+                  <tr key={c.id} onClick={() => { if (batchMode) toggleSel(c.id); else setEditingCustomer(c) }}>
+                    {batchMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSel(c.id)} /></td>}
                     <td>
                       <div className="crm-td-name">
                         <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>
@@ -601,26 +624,47 @@ function LeadPoolPage({ data, setEditingCustomer, enrichCust, moveCust }: Shared
 }
 
 // ==================== 4. Contract Page ====================
-function ContractPage({ closedCusts, setEditingCustomer, enrichCust }: SharedProps) {
+function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts }: SharedProps) {
   const total = closedCusts.reduce((s, c) => s + (c.dealAmount || 0), 0)
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   return (
     <div className="crm-page">
       <div className="crm-toolbar">
         <span className="crm-page-subtitle">已签合同 {closedCusts.length} 份 · 总金额 ¥{(total / 10000).toFixed(1)}万</span>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          {batchMode ? (
+            <>
+              <button className="crm-btn-danger-outline" onClick={() => { if (selectedIds.size > 0) { deleteCusts(Array.from(selectedIds)); setSelectedIds(new Set()); setBatchMode(false) } }} disabled={selectedIds.size === 0}>
+                删除选中 ({selectedIds.size})
+              </button>
+              <button className="crm-btn-ghost" onClick={() => { setBatchMode(false); setSelectedIds(new Set()) }}>取消</button>
+            </>
+          ) : (
+            <>
+              <button className="crm-btn-ghost" onClick={() => setBatchMode(true)}>管理合同</button>
+              <button className="crm-btn-primary" onClick={() => setEditingCustomer({ stage: 'closed' })}><Plus size={14} /> 新增合同</button>
+            </>
+          )}
+        </div>
       </div>
       {closedCusts.length === 0 ? <div className="crm-empty">暂无成交合同</div> : (
         <div className="crm-table-wrap">
           <table className="crm-table">
             <thead>
               <tr>
-                <th>合同编号</th><th>客户</th><th>户型</th><th>预算</th><th>风格</th><th>合同金额</th><th>签约日期</th><th style={{ width: 80 }}>操作</th>
+                {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={closedCusts.length > 0 && closedCusts.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(closedCusts.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
+                <th>合同编号</th><th>客户</th><th>户型</th><th>合同金额</th><th>风格</th><th>签约金额</th><th>签约日期</th><th style={{ width: 80 }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {closedCusts.map(c => {
                 const ec = enrichCust(c)
+                const toggleSel = (id: string) => { const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedIds(next) }
                 return (
-                  <tr key={c.id} onClick={() => setEditingCustomer(c)}>
+                  <tr key={c.id} onClick={() => { if (batchMode) toggleSel(c.id); else setEditingCustomer(c) }}>
+                    {batchMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSel(c.id)} /></td>}
                     <td className="crm-mono crm-accent">{c.projectId || `P2026-${c.id.slice(-3).padStart(3, '0')}`}</td>
                     <td>
                       <div className="crm-td-name">
@@ -815,7 +859,7 @@ function CustomerModal({ customer, notes, onSave, onDelete, onClose }: {
                 <label className="crm-form-label">来源笔记</label>
                 <select className="crm-form-input" value={form.sourceNoteId || ''} onChange={e => h('sourceNoteId', e.target.value)}>
                   <option value="">-- 选择 --</option>
-                  {notes.filter(n => n.status === 'published').map(n => <option key={n.id} value={n.id}>{n.title.slice(0, 20)}</option>)}
+                  {notes.map(n => <option key={n.id} value={n.id}>{n.title.slice(0, 20)}</option>)}
                 </select>
               </div>
             )}
@@ -823,7 +867,13 @@ function CustomerModal({ customer, notes, onSave, onDelete, onClose }: {
           <div className="crm-form-row">
             <div className="crm-form-group"><label className="crm-form-label">户型</label><input className="crm-form-input" value={form.houseType} onChange={e => h('houseType', e.target.value)} /></div>
             <div className="crm-form-group"><label className="crm-form-label">预算</label><input className="crm-form-input" value={form.budget} onChange={e => h('budget', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">风格</label><input className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)} /></div>
+            <div className="crm-form-group"><label className="crm-form-label">风格</label>
+              <select className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                <option value="意式极简">意式极简</option>
+                <option value="法式风格">法式风格</option>
+              </select>
+            </div>
           </div>
           <div className="crm-form-row">
             <div className="crm-form-group"><label className="crm-form-label">下次跟进日期</label><input type="date" className="crm-form-input" value={form.followUpDate} onChange={e => h('followUpDate', e.target.value)} /></div>

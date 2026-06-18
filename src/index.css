@@ -2660,6 +2660,15 @@ textarea.input-base {
 .crm-btn-primary-xs { padding: 3px 10px; font-size: 10px; border-radius: 4px; border: none; cursor: pointer; background: var(--accent); color: #fff; font-family: inherit; font-weight: 600; }
 .crm-btn-primary-xs:hover { opacity: 0.9; }
 .crm-btn-danger { color: var(--danger) !important; }
+.crm-btn-danger-outline {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 16px; border-radius: 6px; border: 1.5px solid var(--danger);
+  font-size: 12px; cursor: pointer; font-weight: 600;
+  background: transparent; color: var(--danger); font-family: inherit;
+  transition: all 0.15s;
+}
+.crm-btn-danger-outline:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.crm-btn-danger-outline:disabled { opacity: 0.4; cursor: default; }
 .crm-actions { display: flex; gap: 4px; }
 .crm-link-btn {
   display: inline-flex; align-items: center; gap: 4px;
