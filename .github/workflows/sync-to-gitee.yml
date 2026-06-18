@@ -5,6 +5,12 @@ on:
     branches: [master]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to sync release for (e.g. v3.2.9)'
+        required: true
+        type: string
 
 jobs:
   sync-code:
@@ -22,40 +28,102 @@ jobs:
 
   sync-release:
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Download GitHub release asset (with retry)
+      - name: Determine release tag
+        id: vars
         run: |
-          for i in $(seq 1 15); do
-            ASSETS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "${{ github.event.release.assets_url }}")
-            ASSET_URL=$(echo "$ASSETS" | python3 -c "import sys,json; a=json.load(sys.stdin); print(a[0]['browser_download_url'] if a else '')")
-            if [ -n "$ASSET_URL" ]; then
-              echo "Downloading: $ASSET_URL"
-              curl -L -o asset.exe "$ASSET_URL"
-              exit 0
-            fi
-            echo "Waiting for asset... ($i/15)"
-            sleep 4
-          done
-          echo "Asset not found after retries"
-          exit 1
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Fetch release info from GitHub
+        run: |
+          echo "Fetching release info for tag: $TAG"
+          RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG")
+          echo "$RELEASE" > release.json
+          python3 -c "import json; r=json.load(open('release.json')); print(f'Release: {r.get(\"name\",\"\")}, assets: {len(r.get(\"assets\",[]))}')"
+
+      - name: Download GitHub release assets
+        run: |
+          python3 -c "
+          import json, os
+          r = json.load(open('release.json'))
+          assets = r.get('assets', [])
+          for a in assets:
+              name = a['name']
+              url = a['browser_download_url']
+              print(f'Downloading: {name}')
+              os.system(f'curl -sSL -o \"{name}\" \"{url}\"')
+          print(f'Downloaded {len(assets)} assets')
+          "
 
       - name: Create Gitee Release
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          TAG="${{ github.event.release.tag_name }}"
-          NAME="${{ github.event.release.name }}"
-          BODY=$(echo "${{ github.event.release.body }}" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          python3 << 'PYEOF'
+          import json, os, subprocess
+          r = json.load(open('release.json'))
+          tag = r['tag_name']
+          name = r.get('name', tag)
+          body = r.get('body', '')
+          target = r.get('target_commitish', 'master')
+          token = os.environ['GITEE_TOKEN']
 
-          RESP=$(curl -s -X POST "https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases" \
-            -H "Content-Type: application/json" \
-            -d "{\"access_token\":\"${{ secrets.GITEE_TOKEN }}\",\"tag_name\":\"$TAG\",\"name\":\"$NAME\",\"body\":$BODY,\"prerelease\":false}")
+          payload = json.dumps({
+              'access_token': token,
+              'tag_name': tag,
+              'name': name,
+              'body': body,
+              'target_commitish': target,
+              'prerelease': False
+          })
 
-          echo "Create release response: $RESP"
-          RELEASE_ID=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['id'])")
-          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
+          resp = subprocess.check_output(['curl', '-s', '-X', 'POST',
+              'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases',
+              '-H', 'Content-Type: application/json',
+              '-d', payload]).decode()
 
-      - name: Upload asset to Gitee Release
+          print(f'Create release response: {resp}')
+          data = json.loads(resp)
+          if 'id' not in data:
+              print(f'ERROR: Failed to create release: {data}')
+              exit(1)
+          release_id = data['id']
+          print(f'Created release id: {release_id}')
+
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'RELEASE_ID={release_id}\n')
+          PYEOF
+
+      - name: Upload assets to Gitee Release
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          curl -s -X POST "https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/${{ env.RELEASE_ID }}/attach_files" \
-            -F "access_token=${{ secrets.GITEE_TOKEN }}" \
-            -F "file=@asset.exe"
+          python3 << 'PYEOF'
+          import json, os, subprocess
+          r = json.load(open('release.json'))
+          token = os.environ['GITEE_TOKEN']
+          release_id = os.environ['RELEASE_ID']
+
+          assets = r.get('assets', [])
+          for a in assets:
+              name = a['name']
+              if not os.path.exists(name):
+                  print(f'File not found: {name}, skipping')
+                  continue
+              print(f'Uploading: {name}')
+              try:
+                  resp = subprocess.check_output(['curl', '-s', '-X', 'POST',
+                      f'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/{release_id}/attach_files',
+                      '-F', f'access_token={token}',
+                      '-F', f'file=@{name}']).decode()
+                  print(f'Upload response: {resp}')
+              except Exception as e:
+                  print(f'Upload failed for {name}: {e}')
+          PYEOF
