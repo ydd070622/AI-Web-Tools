@@ -1,5 +1,5 @@
 /**
- * Auto-updater — check GitHub for latest release, download silently, notify renderer
+ * Auto-updater — check Gitee for latest release, download silently, notify renderer
  */
 import { app, BrowserWindow, net, shell, ipcMain } from 'electron'
 import * as path from 'path'
@@ -20,7 +20,8 @@ let downloading = false
 
 export async function checkForUpdates(mainWindow: BrowserWindow) {
   try {
-    const res = await net.fetch('https://api.github.com/repos/ydd070622/LingWorks/releases/latest')
+    // Gitee is much faster in China than GitHub
+    const res = await net.fetch('https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/latest')
     if (!res.ok) return
     const data = await res.json() as { tag_name?: string; body?: string; assets?: { browser_download_url?: string }[] }
     const remoteVersion = (data.tag_name || '').replace(/^v/, '')
