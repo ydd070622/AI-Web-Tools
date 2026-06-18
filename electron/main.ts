@@ -37,6 +37,7 @@ function createWindow() {
     minHeight: 700,
     frame: false,
     transparent: true,
+    title: 'LingWorks',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webviewTag: true,
