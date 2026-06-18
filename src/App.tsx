@@ -115,8 +115,9 @@ export default function App() {
   const [isMaximized, setIsMaximized] = useState(false)
 
   // Update state
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; currentVersion: string } | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; currentVersion: string; downloadUrl: string } | null>(null)
   const [updateDownloaded, setUpdateDownloaded] = useState(false)
+  const [updateDownloading, setUpdateDownloading] = useState(false)
   const [updateDownloadProgress, setUpdateDownloadProgress] = useState(0)
   const [showUpdateDialog, setShowUpdateDialog] = useState(false)
 
@@ -323,15 +324,17 @@ export default function App() {
     if (!api) return
     const unsubs2: (() => void)[] = []
     unsubs2.push(api.onUpdateAvailable((data: any) => {
-      setUpdateInfo({ version: data.version, currentVersion: data.currentVersion })
+      setUpdateInfo({ version: data.version, currentVersion: data.currentVersion, downloadUrl: data.downloadUrl })
     }))
     unsubs2.push(api.onUpdateDownloadProgress((data: any) => {
       setUpdateDownloadProgress(data.percent)
     }))
     unsubs2.push(api.onUpdateDownloaded((data: any) => {
       setUpdateDownloaded(true)
+      setUpdateDownloading(false)
       setUpdateDownloadProgress(100)
-      setUpdateInfo(prev => prev || { version: data.version, currentVersion: '' })
+      setUpdateInfo(prev => prev || { version: data.version, currentVersion: '', downloadUrl: '' })
+      setShowUpdateDialog(true) // auto-show install prompt
     }))
     unsubs2.push(api.onUpdateError((msg: string) => {
       console.error('Update error:', msg)
@@ -441,6 +444,15 @@ export default function App() {
     <div className={`app-layout${isMaximized ? '' : ' app-rounded'}`}>
       <div className="window-titlebar" onMouseDown={onTitleMouseDown}>
         <span className="titlebar-label">LingWorks</span>
+        {updateInfo && (
+          <button
+            className="titlebar-update-btn"
+            onClick={() => setShowUpdateDialog(true)}
+            title={'发现新版本 v' + updateInfo.version}
+          >
+            Update
+          </button>
+        )}
        <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
         <button
           className="titlebar-home-btn"
@@ -465,15 +477,6 @@ export default function App() {
           <span className={`titlebar-agent-dot${agentOpen ? '' : ' off'}`} />
           <span className="titlebar-agent-key">Ctrl+Space</span>
         </button>
-        {updateInfo && (
-          <button
-            className="titlebar-update-btn"
-            onClick={() => setShowUpdateDialog(true)}
-            title={'发现新版本 v' + updateInfo.version}
-          >
-            Update
-          </button>
-        )}
         <div className="titlebar-btns">
           <button className="traffic-btn traffic-minimize" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</button>
           <button className="traffic-btn traffic-maximize" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</button>
@@ -610,10 +613,10 @@ export default function App() {
       {showUpdateDialog && updateInfo && (
         <div className="update-dialog-overlay" onClick={() => setShowUpdateDialog(false)}>
           <div className="update-dialog" onClick={e => e.stopPropagation()}>
-            <div className="update-dialog-icon">⬆</div>
-            <h3>确认更新到 v{updateInfo.version}</h3>
-            <p>当前版本 v{updateInfo.currentVersion}，应用将立即退出并启动安装程序。</p>
-            {!updateDownloaded && (
+            <div className="update-dialog-icon">{updateDownloaded ? '✅' : '⬆'}</div>
+            <h3>{updateDownloaded ? '下载完成' : '确认更新到 v' + updateInfo.version}</h3>
+            <p>当前版本 v{updateInfo.currentVersion}{updateDownloaded ? '，是否立即重启安装？' : '，点击立即更新开始下载。'}</p>
+            {(updateDownloading || updateDownloaded) && (
               <div className="update-dialog-progress">
                 <div className="update-dialog-progress-bar" style={{ width: updateDownloadProgress + '%' }} />
                 <span>{updateDownloadProgress}%</span>
@@ -621,13 +624,29 @@ export default function App() {
             )}
             <div className="update-dialog-actions">
               <button className="update-btn-later" onClick={() => setShowUpdateDialog(false)}>稍后</button>
-              <button
-                className="update-btn-restart"
-                onClick={() => window.electronAPI?.installUpdate()}
-                disabled={!updateDownloaded}
-              >
-                立即重启更新
-              </button>
+              {!updateDownloaded && !updateDownloading ? (
+                <button
+                  className="update-btn-restart"
+                  onClick={async () => {
+                    setShowUpdateDialog(false)
+                    setUpdateDownloading(true)
+                    setUpdateDownloadProgress(0)
+                    try {
+                      await window.electronAPI?.startUpdateDownload(updateInfo.downloadUrl, updateInfo.version)
+                    } catch {}
+                  }}
+                >
+                  立即更新
+                </button>
+              ) : (
+                <button
+                  className="update-btn-restart"
+                  onClick={() => window.electronAPI?.installUpdate()}
+                  disabled={!updateDownloaded}
+                >
+                  立即重启更新
+                </button>
+              )}
             </div>
           </div>
         </div>

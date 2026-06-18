@@ -1833,7 +1833,7 @@ textarea.input-base {
 .titlebar-agent-dot.off { background: #555; }
 .titlebar-agent-key { font-size: 9px; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,0.05); }
 
-/* Update button in titlebar */
+/* Update button in titlebar — on the left, after LingWorks label */
 .titlebar-update-btn {
   background: #22c55e;
   color: #fff;
@@ -1843,7 +1843,8 @@ textarea.input-base {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  margin-right: 8px;
+  margin: 0 12px 0 8px;
+  flex-shrink: 0;
   transition: background 0.2s;
   -webkit-app-region: no-drag;
 }

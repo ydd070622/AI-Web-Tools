@@ -104,6 +104,7 @@ window.electronAPI = {
   fileEdit: (path: string, search: string, replace: string) => ipcRenderer.invoke('file-edit', path, search, replace),
 
   // Update
+  startUpdateDownload: (downloadUrl: string, version: string) => ipcRenderer.invoke('update-start-download', downloadUrl, version),
   installUpdate: () => ipcRenderer.invoke('update-install'),
   onUpdateAvailable: (cb: (data: { version: string; currentVersion: string; downloadUrl: string }) => void) => {
     const h = (_e: any, d: any) => cb(d)

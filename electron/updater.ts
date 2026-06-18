@@ -16,6 +16,7 @@ function compareVersions(local: string, remote: string): boolean {
 }
 
 let downloadedFilePath: string | null = null
+let downloading = false
 
 export async function checkForUpdates(mainWindow: BrowserWindow) {
   try {
@@ -29,15 +30,12 @@ export async function checkForUpdates(mainWindow: BrowserWindow) {
     const downloadUrl = data.assets?.[0]?.browser_download_url
     if (!downloadUrl) return
 
-    // Notify renderer that update is available — starts silent download
+    // Just notify renderer — do NOT auto-download
     mainWindow.webContents.send('update-available', {
       version: remoteVersion,
       currentVersion: localVersion,
       downloadUrl,
     })
-
-    // Auto-start silent download
-    await startDownload(mainWindow, downloadUrl, remoteVersion)
   } catch {}
 }
 
@@ -86,6 +84,17 @@ async function startDownload(mainWindow: BrowserWindow, downloadUrl: string, ver
 }
 
 export function registerUpdateIPC(mainWindow: BrowserWindow) {
+  // Start download on demand (user clicked "立即更新")
+  ipcMain.handle('update-start-download', async (_event, downloadUrl: string, version: string) => {
+    if (downloading) return // prevent double download
+    downloading = true
+    try {
+      await startDownload(mainWindow, downloadUrl, version)
+    } finally {
+      downloading = false
+    }
+  })
+
   ipcMain.handle('update-install', async () => {
     if (downloadedFilePath) {
       shell.openPath(downloadedFilePath)
