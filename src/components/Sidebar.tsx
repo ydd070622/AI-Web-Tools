@@ -11,6 +11,7 @@ interface SidebarProps {
   downloads: DownloadItem[]
   expandDownloads?: boolean
   onSelect: (id: string) => void
+  onReselect?: (id: string) => void
   onToggleTheme: () => void
   onOpenSettings: () => void
   onToggleSection: (sectionId: string) => void
@@ -36,7 +37,14 @@ const favicons: Record<string, string> = {
   onethingai: './favicons/onethingai.png',
 }
 
-export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onToggleTheme, onOpenSettings, onToggleSection, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
+export default function Sidebar({ items, activeId, theme, collapsed, collapsedSections, downloads, expandDownloads, onSelect, onReselect, onToggleTheme, onOpenSettings, onToggleSection, onCancelDownload, onClearDownloads, onSidebarActivity, agentOpen, onToggleAgent }: SidebarProps) {
+  const handleItemClick = (id: string) => {
+    if (activeId === id) {
+      onReselect?.(id)
+    } else {
+      onSelect(id)
+    }
+  }
   const makeIcon = (name: string, alt: string) => (
     <img src={`./icons/${name}.png`} alt={alt} style={{width: 24, height: 24}} />
   );
@@ -100,24 +108,24 @@ if (collapsed) {
     <div className="sidebar sidebar-collapsed" onMouseMove={onSidebarActivity} onMouseEnter={onSidebarActivity}>
       <div className="sidebar-nav-collapsed">
         {websites.map(item => (
-          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => onSelect(item.id)} title={item.label}>
+          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => handleItemClick(item.id)} title={item.label}>
             {favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={14} />)}
           </div>
         ))}
         <div className="sidebar-sep" />
         {xhsSites.map(item => (
-          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => onSelect(item.id)} title={item.label}>
+          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => handleItemClick(item.id)} title={item.label}>
             {favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={14} />)}
           </div>
         ))}
         <div className="sidebar-sep" />
         {comfyuiPageItem && (
-          <div key={comfyuiPageItem.id} className={`sidebar-icon-item ${activeId === comfyuiPageItem.id ? 'active' : ''}`} onClick={() => onSelect(comfyuiPageItem.id)} title={comfyuiPageItem.label}>
+          <div key={comfyuiPageItem.id} className={`sidebar-icon-item ${activeId === comfyuiPageItem.id ? 'active' : ''}`} onClick={() => handleItemClick(comfyuiPageItem.id)} title={comfyuiPageItem.label}>
             <img src="./icons/comfyui.png" alt="" className="sidebar-icon-img" />
           </div>
         )}
         {imageWorkshopItems.map(item => (
-          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => onSelect(item.id)} title={item.label}>
+          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => handleItemClick(item.id)} title={item.label}>
             {item.type === 'comfyui'
               ? (favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={14} />))
               : (toolIcons[item.id] || <Brush size={14} />)}
@@ -128,7 +136,7 @@ if (collapsed) {
           const isAccount = item.type === 'account'
           const isVpn = item.type === 'vpn'
           return (
-          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => onSelect(item.id)} title={item.label}>
+          <div key={item.id} className={`sidebar-icon-item ${activeId === item.id ? 'active' : ''}`} onClick={() => handleItemClick(item.id)} title={item.label}>
             {isVpn && favicons[item.id] ? <img src={favicons[item.id]} alt={item.label} className="sidebar-icon-img" />
              : isAccount ? (iconLabel[item.id] || <Contact size={14} color="#f97316" />)
              : (aggregatorIcons[item.id] || <Globe size={14} />)}
@@ -195,7 +203,7 @@ if (collapsed) {
           <div
             key={item.id}
             className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
-            onClick={() => onSelect(item.id)}
+            onClick={() => handleItemClick(item.id)}
           >
             <span className="sidebar-item-icon">
               {favicons[item.id] ? <img src={favicons[item.id]} alt="" className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={16} />)}
@@ -214,7 +222,7 @@ if (collapsed) {
           <div
             key={item.id}
             className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
-            onClick={() => onSelect(item.id)}
+            onClick={() => handleItemClick(item.id)}
           >
             <span className="sidebar-item-icon">
               {favicons[item.id] ? <img src={favicons[item.id]} alt="" className="sidebar-icon-img" /> : (iconLabel[item.id] || <Globe size={16} />)}
@@ -234,7 +242,7 @@ if (collapsed) {
           <div
             key={comfyuiPageItem.id}
             className={`sidebar-item ${activeId === comfyuiPageItem.id ? 'active' : ''}`}
-            onClick={() => onSelect(comfyuiPageItem.id)}
+            onClick={() => handleItemClick(comfyuiPageItem.id)}
           >
             <span className="sidebar-item-icon"><img src="./icons/comfyui.png" alt="" className="sidebar-icon-img" /></span>
             <span>{comfyuiPageItem.label}</span>
@@ -244,7 +252,7 @@ if (collapsed) {
           <div
             key={item.id}
             className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
-            onClick={() => onSelect(item.id)}
+            onClick={() => handleItemClick(item.id)}
           >
             <span className="sidebar-item-icon">
               {item.type === 'comfyui'
@@ -267,7 +275,7 @@ if (collapsed) {
             <div
               key={item.id}
               className={`sidebar-item ${activeId === item.id ? 'active' : ''}`}
-              onClick={() => onSelect(item.id)}
+              onClick={() => handleItemClick(item.id)}
             >
               <span className="sidebar-item-icon">
                 {isVpn && favicons[item.id] ? <img src={favicons[item.id]} alt="" className="sidebar-icon-img" />

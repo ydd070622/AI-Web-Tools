@@ -117,6 +117,11 @@ export default function App() {
   // Trigger sidebar download panel auto-expand on download events
   const [expandDownloads, setExpandDownloads] = useState(0)
 
+  // Reset keys for aggregator pages — increment to trigger back-to-grid
+  const [platformResetKey, setPlatformResetKey] = useState(0)
+  const [rechargeResetKey, setRechargeResetKey] = useState(0)
+  const [xhsResetKey, setXhsResetKey] = useState(0)
+
   // Ref-based dedup (not affected by React batching) to prevent duplicate download entries
   const activeDownloadRef = useRef(new Set<string>())
 
@@ -450,6 +455,11 @@ export default function App() {
           downloads={downloads}
           expandDownloads={expandDownloads > 0}
           onSelect={setActiveId}
+          onReselect={(id) => {
+            if (id === 'platforms') setPlatformResetKey(k => k + 1)
+            if (id === 'recharge') setRechargeResetKey(k => k + 1)
+            if (id === 'xhs_juguang') setXhsResetKey(k => k + 1)
+          }}
           onToggleTheme={toggleTheme}
           onOpenSettings={() => setShowSettings(true)}
           onToggleSection={toggleSection}
@@ -466,7 +476,7 @@ export default function App() {
           {websiteSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
-          {activeId === 'xhs_juguang' && <XiaoHongShuCards onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />}
+          {activeId === 'xhs_juguang' && <XiaoHongShuCards onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} resetKey={xhsResetKey} />}
           {comfyuiSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
@@ -478,8 +488,8 @@ export default function App() {
           {activeId === 'img2img' && <ImageToImage models={models} onSendToAgent={handleSendToAgent} />}
           {activeId === 'history' && <History />}
           {activeId === 'prompts' && <Prompts />}
-          {activeId === 'platforms' && <Platforms autoOpenPlatform={autoOpenPlatform} onPlatformOpened={() => setAutoOpenPlatform(null)} />}
-          {activeId === 'recharge' && <Recharge />}
+          {activeId === 'platforms' && <Platforms autoOpenPlatform={autoOpenPlatform} onPlatformOpened={() => setAutoOpenPlatform(null)} resetKey={platformResetKey} />}
+          {activeId === 'recharge' && <Recharge resetKey={rechargeResetKey} />}
           {activeId === 'dashboard' && <Dashboard onSelect={(id) => { setActiveId(id); if (id === 'platforms') setAutoOpenPlatform('deepseek') }} />}
           {activeId === 'accounts' && <Accounts />}
         </div>

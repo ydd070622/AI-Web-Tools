@@ -27,7 +27,7 @@ interface ExtRechargePlatform extends RechargePlatform {
 
 let tabCounter = 0
 
-export default function Recharge() {
+export default function Recharge({ resetKey }: { resetKey?: number }) {
   const [platforms, setPlatforms] = useState<ExtRechargePlatform[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -135,6 +135,11 @@ export default function Recharge() {
   const switchTab = (id: string) => setActiveId(id)
   const backToGrid = () => setActiveId(null)
 
+  // Re-clicking sidebar "充值平台" triggers back to grid
+  useEffect(() => {
+    if (resetKey && resetKey > 0) backToGrid()
+  }, [resetKey])
+
   const closeTab = (id: string) => {
     setTabs(prev => {
       const idx = prev.findIndex(t => t.id === id); const next = prev.filter(t => t.id !== id)
@@ -210,7 +215,6 @@ export default function Recharge() {
             <div className="nav-btn" onClick={handleGoBack} title="后退"><ArrowLeft size={13} /></div>
             <div className="nav-btn" onClick={handleGoForward} title="前进"><ArrowRight size={13} /></div>
           </div>
-          <div onClick={backToGrid} style={{ width: 34, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, borderRight: '1px solid var(--border-color)' }} title="返回列表"><ArrowLeft size={14} /></div>
           <div className="tabs-container">
             {tabs.map(tab => (
               <div key={tab.id} className={'tab-item' + (tab.id === activeId ? ' active' : '')} onClick={() => switchTab(tab.id)}>

@@ -22,7 +22,7 @@ const generateColor = () => {
 
 let tabCounter = 0
 
-export default function Platforms({ autoOpenPlatform, onPlatformOpened }: { autoOpenPlatform?: string | null; onPlatformOpened?: () => void }) {
+export default function Platforms({ autoOpenPlatform, onPlatformOpened, resetKey }: { autoOpenPlatform?: string | null; onPlatformOpened?: () => void; resetKey?: number }) {
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -192,6 +192,11 @@ export default function Platforms({ autoOpenPlatform, onPlatformOpened }: { auto
   const switchTab = (id: string) => setActiveId(id)
   const backToGrid = () => setActiveId(null)
 
+  // Re-clicking sidebar "开放平台" triggers back to grid
+  useEffect(() => {
+    if (resetKey && resetKey > 0) backToGrid()
+  }, [resetKey])
+
   const closeTab = (id: string) => {
     setTabs(prev => {
       const idx = prev.findIndex(t => t.id === id)
@@ -355,7 +360,6 @@ export default function Platforms({ autoOpenPlatform, onPlatformOpened }: { auto
             <div className="nav-btn" onClick={handleGoBack} title="后退"><ArrowLeft size={13} /></div>
             <div className="nav-btn" onClick={handleGoForward} title="前进"><ArrowRight size={13} /></div>
           </div>
-          <div onClick={backToGrid} style={{ width: 34, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, borderRight: '1px solid var(--border-color)' }} title="返回平台列表"><ArrowLeft size={14} /></div>
           <div className="tabs-container">
             {tabs.map(tab => (
               <div key={tab.id} className={'tab-item' + (tab.id === activeId ? ' active' : '')} onClick={() => switchTab(tab.id)}>

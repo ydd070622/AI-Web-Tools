@@ -65,13 +65,19 @@ function defaultAccounts(): AccountConfig[] {
 
 let tabCounter = 0
 
-export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: string, pageContent?: string) => void }) {
+export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChange?: (url: string, pageContent?: string) => void; resetKey?: number }) {
   const [accounts, setAccounts] = useState<AccountConfig[]>(defaultAccounts())
   const [loaded, setLoaded] = useState(false)
   const [manageMode, setManageMode] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [activeView, setActiveView] = useState<{ account: AccountConfig; url: string; label: string } | null>(null)
+  const [showGrid, setShowGrid] = useState(true)
+
+  // Re-clicking sidebar "小红书" returns to grid WITHOUT destroying webviews
+  useEffect(() => {
+    if (resetKey && resetKey > 0) setShowGrid(true)
+  }, [resetKey])
 
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState('')
@@ -318,25 +324,33 @@ export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: 
 
   if (!loaded) return null
 
-  if (activeView) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
+  const cols = Math.min(accounts.length, 4)
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--bg-secondary)',
+    borderRadius: 16,
+    border: '1px solid var(--border-color)',
+    padding: 24,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    transition: 'all 0.2s',
+    width: cols <= 2 ? 280 : undefined,
+    flex: cols > 2 ? 1 : undefined,
+  }
+
+  return (
+    <>
+      {/* WebView area — kept alive even when grid is shown */}
+      {activeView && (
+      <div style={{ display: showGrid ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderBottom: '1px solid var(--border-color)', flexShrink: 0, overflow: 'hidden' }}>
-          <button
-            onClick={() => setActiveView(null)}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12, flexShrink: 0, whiteSpace: 'nowrap' }}
-          >
-            <ArrowLeft size={13} /> 返回
-          </button>
           <span style={{ fontSize: 13, fontWeight: 600, color: activeView.account.color, flexShrink: 0, whiteSpace: 'nowrap' }}>{activeView.account.name}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>· {activeView.label}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
               onClick={handleGoBack} title="后退"><ArrowLeftIcon size={13} /></div>
             <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
               onClick={handleGoForward} title="前进"><ArrowRight size={13} /></div>
-            <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-              onClick={handleRefresh} title="刷新"><RefreshCw size={13} /></div>
           </div>
           <div style={{ display: 'flex', gap: 2, flex: 1, minWidth: 0, overflow: 'hidden', alignItems: 'center' }}>
             {tabs.map(tab => (
@@ -360,7 +374,8 @@ export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: 
               </div>
             ))}
           </div>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', opacity: 0.5, flexShrink: 0, whiteSpace: 'nowrap' }}>cookie 隔离</span>
+          <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+            onClick={handleRefresh} title="刷新"><RefreshCw size={13} /><span style={{ fontSize: 12 }}>刷新网页</span></div>
         </div>
         <div ref={containerRef} style={{ flex: 1, position: 'relative' }} />
         {ctxTab && ctxPos && (
@@ -379,26 +394,10 @@ export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: 
           </div>
         )}
       </div>
-    )
-  }
+      )}
 
-  const cols = Math.min(accounts.length, 4)
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--bg-secondary)',
-    borderRadius: 16,
-    border: '1px solid var(--border-color)',
-    padding: 24,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 12,
-    transition: 'all 0.2s',
-    width: cols <= 2 ? 280 : undefined,
-    flex: cols > 2 ? 1 : undefined,
-  }
-
-  return (
-    <div style={{ height: '100%', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Grid view */}
+  <div style={{ display: showGrid ? 'flex' : 'none', height: '100%', background: 'var(--bg-primary)', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, maxWidth: 1100, width: '100%', padding: '0 24px' }}>
         <div style={{ textAlign: 'center', display: 'flex', alignItems: 'center', gap: 16 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>小红书聚光</h1>
@@ -522,6 +521,7 @@ export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: 
                         setAccounts(updated)
                         saveStore(updated)
                         setActiveView({ account: acc, url: site.url, label: site.label })
+                        setShowGrid(false)
                       }}
                       style={{
                         padding: '7px 8px', borderRadius: 8,
@@ -546,5 +546,6 @@ export default function XiaoHongShuCards({ onUrlChange }: { onUrlChange?: (url: 
         </p>
       </div>
     </div>
+    </>
   )
 }
