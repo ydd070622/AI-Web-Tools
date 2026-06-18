@@ -2898,6 +2898,12 @@ textarea.input-base {
 .crm-form-row > * { flex: 1; }
 .crm-form-input[type="date"] { color-scheme: dark; }
 
+/* CRM Customer Link Info */
+.crm-cust-link-info {
+  padding: 8px 12px; border-radius: 6px; font-size: 12px;
+  background: rgba(99,102,241,0.08); color: var(--accent); border: 1px solid rgba(99,102,241,0.2);
+}
+
 /* CRM Empty State */
 .crm-empty { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 13px; }
 
@@ -2925,3 +2931,60 @@ textarea.input-base {
 .theme-light .crm-funnel-track { background: #f0f1f5; }
 .theme-light .crm-view-toggle { background: #f0f1f5; }
 .theme-light .crm-view-btn.active { background: #fff; }
+
+/* CRM Account Tabs */
+.crm-account-tabs {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.crm-account-tab {
+  padding: 4px 12px; border-radius: 14px; border: 1.5px solid var(--border-color);
+  background: transparent; color: var(--text-secondary); font-size: 12px;
+  font-family: inherit; font-weight: 500; cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.crm-account-tab:hover { border-color: var(--accent); color: var(--accent); background: rgba(99,102,241,0.06); }
+.crm-account-tab.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.crm-account-tab-count {
+  font-size: 10px; padding: 0 5px; border-radius: 8px; font-weight: 700;
+  background: rgba(255,255,255,0.15);
+}
+.crm-account-tab.active .crm-account-tab-count { background: rgba(255,255,255,0.25); }
+.crm-account-tab-action {
+  border-style: dashed; color: var(--text-muted); font-size: 11px;
+}
+.crm-account-tab-action:hover { color: var(--accent); border-color: var(--accent); }
+
+/* CRM Account Badge */
+.crm-account-badge {
+  font-size: 10px; padding: 1px 8px; border-radius: 8px; font-weight: 600;
+  background: rgba(99,102,241,0.12); color: #818cf8;
+  white-space: nowrap;
+}
+
+/* CRM Account List (Management Modal) */
+.crm-account-list {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.crm-account-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-radius: 6px;
+  background: var(--bg-primary); border: 1px solid var(--border-color);
+}
+.crm-account-name { font-size: 13px; font-weight: 500; }
+.crm-account-row-actions { display: flex; gap: 6px; }
+.crm-account-edit-input { flex: 1; padding: 6px 10px !important; font-size: 13px !important; }
+
+/* CRM Table Select */
+.crm-table-select {
+  padding: 2px 6px; border-radius: 5px; border: 1.5px solid var(--border-color);
+  background: var(--bg-primary); color: var(--text-primary); font-size: 11px;
+  font-family: inherit; cursor: pointer; outline: none;
+}
+.crm-table-select:focus { border-color: var(--accent); }
+
+/* Light theme overrides */
+.theme-light .crm-account-badge { background: #eef2ff; color: #4338ca; }
+.theme-light .crm-account-row { background: #f5f6fa; }

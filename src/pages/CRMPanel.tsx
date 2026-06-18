@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Filter, FileText, BarChart3, FileEdit, Plus, Se
 interface Note {
   id: string; title: string; publishDate: string; status: 'published' | 'draft'
   views: number; likes: number; comments: number
+  account: string
 }
 interface Customer {
   id: string; name: string; phone: string; wechat: string
@@ -16,7 +17,7 @@ interface Customer {
   createdAt: string; updatedAt: string
   projectId?: string
 }
-interface CRMData { notes: Note[]; customers: Customer[] }
+interface CRMData { accounts: string[]; notes: Note[]; customers: Customer[] }
 interface EnrichedCustomer extends Customer {
   sourceLabel: string; sourceIcon: string
 }
@@ -96,12 +97,12 @@ function createDefaultData(): CRMData {
   const fmt = (d: Date) => d.toISOString().split('T')[0]
   const a = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r }
   const notes: Note[] = [
-    { id: 'n1', title: '奶油风客厅改造实录，附软装清单', publishDate: '2026-06-08', status: 'published', views: 2341, likes: 187, comments: 43 },
-    { id: 'n2', title: '89平小三居，这样装显大20平', publishDate: '2026-06-02', status: 'published', views: 5620, likes: 423, comments: 89 },
-    { id: 'n3', title: '法式复古卧室，每个角落都是电影感', publishDate: '2026-05-28', status: 'published', views: 1892, likes: 156, comments: 32 },
-    { id: 'n4', title: '精装房改造避坑指南', publishDate: '', status: 'draft', views: 0, likes: 0, comments: 0 },
-    { id: 'n5', title: '15万预算装120平，附费用明细', publishDate: '2026-06-12', status: 'published', views: 3210, likes: 267, comments: 55 },
-    { id: 'n6', title: '原木风厨房，治愈系烟火气', publishDate: '', status: 'draft', views: 0, likes: 0, comments: 0 },
+    { id: 'n1', title: '奶油风客厅改造实录，附软装清单', publishDate: '2026-06-08', status: 'published', views: 2341, likes: 187, comments: 43, account: '主账号' },
+    { id: 'n2', title: '89平小三居，这样装显大20平', publishDate: '2026-06-02', status: 'published', views: 5620, likes: 423, comments: 89, account: '主账号' },
+    { id: 'n3', title: '法式复古卧室，每个角落都是电影感', publishDate: '2026-05-28', status: 'published', views: 1892, likes: 156, comments: 32, account: '小号A' },
+    { id: 'n4', title: '精装房改造避坑指南', publishDate: '', status: 'draft', views: 0, likes: 0, comments: 0, account: '主账号' },
+    { id: 'n5', title: '15万预算装120平，附费用明细', publishDate: '2026-06-12', status: 'published', views: 3210, likes: 267, comments: 55, account: '小号A' },
+    { id: 'n6', title: '原木风厨房，治愈系烟火气', publishDate: '', status: 'draft', views: 0, likes: 0, comments: 0, account: '小号B' },
   ]
   const customers: Customer[] = [
     { id: 'c1', name: '张女士', phone: '138****6789', wechat: 'zhang_xx', source: 'xiaohongshu', sourceNoteId: 'n1', stage: 'followup', houseType: '三室两厅', budget: '20万', style: '奶油风', followUpDate: fmt(a(now, 1)), followUpNote: '客户说6.19才有空', dealAmount: null, notes: '对奶油风很感兴趣，发了户型图。需等先生一起看方案。', createdAt: '2026-06-10', updatedAt: '2026-06-15' },
@@ -114,7 +115,7 @@ function createDefaultData(): CRMData {
     { id: 'c8', name: '吴女士', phone: '131****0123', wechat: 'wu_design', source: 'referral', sourceNoteId: null, stage: 'followup', houseType: '两室一厅', budget: '12万', style: '日式', followUpDate: fmt(now), followUpNote: '今天联系确认方案', dealAmount: null, notes: '预算有限，基础改造。发了方案还没反馈。', createdAt: '2026-06-08', updatedAt: '2026-06-13' },
     { id: 'c9', name: '林先生', phone: '130****3456', wechat: '', source: 'xiaohongshu', sourceNoteId: 'n3', stage: 'lead', houseType: '', budget: '', style: '美式复古', followUpDate: '', followUpNote: '', dealAmount: null, notes: '私信问美式复古案例，发了案例集未回复。', createdAt: '2026-06-16', updatedAt: '2026-06-16' },
   ]
-  return { notes, customers }
+  return { accounts: ['主账号', '小号A', '小号B'], notes, customers }
 }
 
 // ==================== Main Component ====================
@@ -124,6 +125,8 @@ export default function CRMPanel() {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
   const [editingNote, setEditingNote] = useState<Partial<Note> | null>(null)
+  const [editingContract, setEditingContract] = useState(false)
+  const [viewingContract, setViewingContract] = useState<Customer | null>(null)
   const [filterNoteId, setFilterNoteId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
@@ -180,7 +183,8 @@ export default function CRMPanel() {
       source: cust.source || 'xiaohongshu', sourceNoteId: cust.sourceNoteId || null,
       stage: cust.stage || 'lead', houseType: cust.houseType || '', budget: cust.budget || '',
       style: cust.style || '', followUpDate: cust.followUpDate || '', followUpNote: cust.followUpNote || '',
-      dealAmount: null, notes: cust.notes || '', createdAt: ts, updatedAt: ts,
+      dealAmount: cust.dealAmount ?? null, notes: cust.notes || '', createdAt: ts, updatedAt: ts,
+      projectId: cust.projectId,
     }
     persist({ ...data, customers: [...data.customers, c] })
   }, [data, ts, persist])
@@ -213,54 +217,9 @@ export default function CRMPanel() {
     const n: Note = {
       id: 'n' + Date.now(), title: note.title || '', publishDate: note.publishDate || '',
       status: note.status || 'draft', views: 0, likes: 0, comments: 0,
+      account: note.account || data.accounts[0] || '',
     }
     persist({ ...data, notes: [...data.notes, n] })
-  }, [data, persist])
-
-  const syncNotes = useCallback((scrapedNotes: Array<{ title: string; publish_date: string; views: number; likes: number; collects: number; comments: number; shares: number }>) => {
-    let added = 0; let updated = 0; let removed = 0
-    const existing = [...data.notes]
-    const scrapedTitles = new Set(scrapedNotes.map(n => n.title).filter(Boolean))
-    // Mark which note IDs are linked to customers
-    const linkedIds = new Set(data.customers.filter(c => c.sourceNoteId).map(c => c.sourceNoteId!))
-
-    // Remove old notes that aren't in scraped data and have no customers
-    const filtered = existing.filter(n => {
-      if (!scrapedTitles.has(n.title) && !linkedIds.has(n.id)) {
-        removed++
-        return false
-      }
-      return true
-    })
-
-    for (const sn of scrapedNotes) {
-      if (!sn.title.trim()) continue
-      const idx = filtered.findIndex(n => n.title === sn.title)
-      if (idx >= 0) {
-        filtered[idx] = {
-          ...filtered[idx],
-          publishDate: sn.publish_date || filtered[idx].publishDate,
-          views: sn.views || filtered[idx].views,
-          likes: sn.likes || filtered[idx].likes,
-          comments: sn.comments || filtered[idx].comments,
-          status: 'published',
-        }
-        updated++
-      } else {
-        filtered.push({
-          id: 'n' + Date.now() + '_' + added,
-          title: sn.title,
-          publishDate: sn.publish_date,
-          status: 'published',
-          views: sn.views,
-          likes: sn.likes,
-          comments: sn.comments,
-        })
-        added++
-      }
-    }
-    persist({ ...data, notes: filtered })
-    return { added, updated, removed }
   }, [data, persist])
 
   const followUps = useMemo(() =>
@@ -275,7 +234,7 @@ export default function CRMPanel() {
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, syncNotes, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setTab }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
@@ -333,6 +292,21 @@ export default function CRMPanel() {
           onClose={() => setEditingNote(null)}
         />
       )}
+      {editingContract && (
+        <ContractModal
+          customers={data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead')}
+          onSave={cust => { addCust(cust); setEditingContract(false) }}
+          onClose={() => setEditingContract(false)}
+        />
+      )}
+      {viewingContract && (
+        <ContractDetailModal
+          contract={viewingContract}
+          onSave={(id, upd) => { updateCust(id, upd); setViewingContract(null) }}
+          onDelete={() => { deleteCust(viewingContract.id); setViewingContract(null) }}
+          onClose={() => setViewingContract(null)}
+        />
+      )}
     </div>
   )
 }
@@ -353,23 +327,24 @@ interface SharedProps {
   moveCust: (id: string, stage: string) => void
   updateNote: (id: string, upd: Partial<Note>) => void
   addNote: (note: Partial<Note>) => void
-  syncNotes: (scrapedNotes: Array<{ title: string; publish_date: string; views: number; likes: number; collects: number; comments: number; shares: number }>) => { added: number; updated: number; removed: number }
   viewMode: 'table' | 'kanban'
   setViewMode: (v: 'table' | 'kanban') => void
   filterNoteId: string | null
   setFilterNoteId: (id: string | null) => void
   setEditingCustomer: (c: Partial<Customer> | null) => void
   setEditingNote: (n: Partial<Note> | null) => void
+  setEditingContract: (v: boolean) => void
+  setViewingContract: (c: Customer | null) => void
   setTab: (tab: string) => void
 }
 
 // ==================== 1. Workbench ====================
 function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, setEditingCustomer, setTab }: SharedProps) {
-  const total = data.customers.length
+  const total = data.customers.filter(c => c.stage !== 'closed').length
   const revenue = closedCusts.reduce((s, c) => s + (c.dealAmount || 0), 0)
   const thisMonth = new Date().toISOString().slice(0, 7)
-  const newMonth = data.customers.filter(c => c.createdAt.startsWith(thisMonth)).length
-  const urgentFollowUps = followUps.filter(c => c.diff <= 0)
+  const newMonth = data.customers.filter(c => c.stage !== 'closed' && c.createdAt.startsWith(thisMonth)).length
+  const allFollowUps = followUps
   const recentActivity = [...data.customers].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5)
 
   return (
@@ -403,12 +378,12 @@ function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, lea
         <div className="crm-section">
           <div className="crm-section-header">
             <span className="crm-section-title">⏰ 待跟进客户</span>
-            <span className="crm-section-sub">{urgentFollowUps.length} 人需要关注</span>
+            <span className="crm-section-sub">{allFollowUps.length} 人待跟进</span>
             <button className="crm-btn-ghost-sm" style={{ marginLeft: 'auto' }} onClick={() => setTab('customers')}>全部 →</button>
           </div>
           <div className="crm-fu-list">
-            {urgentFollowUps.length === 0 && <div className="crm-empty">暂无待跟进客户</div>}
-            {urgentFollowUps.map(c => {
+            {allFollowUps.length === 0 && <div className="crm-empty">暂无待跟进客户</div>}
+            {allFollowUps.map(c => {
               const fu = fuDisplay(c.followUpDate)
               const [g1, g2] = avatarGrad(c.name)
               return (
@@ -432,7 +407,7 @@ function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, lea
           </div>
           <div className="crm-qa-grid">
             {[
-              { label: '新增客户', action: () => { setTab('customers'); setTimeout(() => setEditingCustomer({ stage: 'lead' }), 100) } },
+              { label: '新增客户', action: () => { setTab('customers'); setTimeout(() => setEditingCustomer({ stage: 'wechat' }), 100) } },
               { label: `线索池 (${leadCount})`, action: () => setTab('leadpool') },
               { label: '看板视图', action: () => setTab('customers') },
               { label: `合同管理 (${closedCusts.length})`, action: () => setTab('contracts') },
@@ -477,7 +452,7 @@ function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterN
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  const customers = data.customers.filter(c => c.stage !== 'closed').map(enrichCust)
+  const customers = data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead').map(enrichCust)
 
   const filtered = useMemo(() => {
     let list = customers
@@ -524,7 +499,7 @@ function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterN
           ) : (
             <>
               <button className="crm-btn-ghost" onClick={() => { setBatchMode(true); setViewMode('table') }}>管理</button>
-              <button className="crm-btn-primary" onClick={() => onAdd('lead')}><Plus size={14} /> 添加客户</button>
+              <button className="crm-btn-primary" onClick={() => onAdd('wechat')}><Plus size={14} /> 添加客户</button>
             </>
           )}
         </div>
@@ -671,7 +646,7 @@ function LeadPoolPage({ data, setEditingCustomer, enrichCust, moveCust }: Shared
 }
 
 // ==================== 4. Contract Page ====================
-function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts }: SharedProps) {
+function ContractPage({ closedCusts, setViewingContract, setEditingContract, deleteCusts }: SharedProps) {
   const total = closedCusts.reduce((s, c) => s + (c.dealAmount || 0), 0)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -691,7 +666,7 @@ function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts
           ) : (
             <>
               <button className="crm-btn-ghost" onClick={() => setBatchMode(true)}>管理合同</button>
-              <button className="crm-btn-primary" onClick={() => setEditingCustomer({ stage: 'closed' })}><Plus size={14} /> 新增合同</button>
+              <button className="crm-btn-primary" onClick={() => setEditingContract(true)}><Plus size={14} /> 新增合同</button>
             </>
           )}
         </div>
@@ -702,15 +677,14 @@ function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts
             <thead>
               <tr>
                 {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={closedCusts.length > 0 && closedCusts.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(closedCusts.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
-                <th>合同编号</th><th>客户</th><th>户型</th><th>合同金额</th><th>风格</th><th>签约金额</th><th>签约日期</th><th style={{ width: 80 }}>操作</th>
+                <th>合同编号</th><th>客户</th><th>风格</th><th>合同金额</th><th>签约日期</th><th>备注</th><th style={{ width: 80 }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {closedCusts.map(c => {
-                const ec = enrichCust(c)
                 const toggleSel = (id: string) => { const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedIds(next) }
                 return (
-                  <tr key={c.id} onClick={() => { if (batchMode) toggleSel(c.id); else setEditingCustomer(c) }}>
+                  <tr key={c.id} onClick={() => { if (batchMode) toggleSel(c.id); else setViewingContract(c) }}>
                     {batchMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(c.id)} onChange={() => toggleSel(c.id)} /></td>}
                     <td className="crm-mono crm-accent">{c.projectId || `P2026-${c.id.slice(-3).padStart(3, '0')}`}</td>
                     <td>
@@ -719,12 +693,11 @@ function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts
                         {c.name}
                       </div>
                     </td>
-                    <td>{c.houseType || '—'}</td>
-                    <td>{c.budget || '—'}</td>
                     <td>{c.style || '—'}</td>
                     <td className="crm-amount">¥{(c.dealAmount || 0).toLocaleString()}</td>
                     <td className="crm-muted">{fmtDate(c.updatedAt)}</td>
-                    <td><button className="crm-btn-ghost-xs" onClick={e => { e.stopPropagation(); setEditingCustomer(c) }}>详情</button></td>
+                    <td className="crm-notes-cell">{c.notes || <span className="crm-muted">—</span>}</td>
+                    <td><button className="crm-btn-ghost-xs" onClick={e => { e.stopPropagation(); setViewingContract(c) }}>详情</button></td>
                   </tr>
                 )
               })}
@@ -738,7 +711,7 @@ function ContractPage({ closedCusts, setEditingCustomer, enrichCust, deleteCusts
 
 // ==================== 5. Dashboard ====================
 function DashboardPage({ data, todayCount }: SharedProps) {
-  const total = data.customers.length
+  const total = data.customers.filter(c => c.stage !== 'closed').length
   const closed = data.customers.filter(c => c.stage === 'closed').length
   const revenue = data.customers.reduce((s, c) => s + (c.dealAmount || 0), 0)
 
@@ -808,70 +781,55 @@ function DashboardPage({ data, todayCount }: SharedProps) {
 }
 
 // ==================== 6. Notes Page ====================
-function NotesPage({ data, setEditingNote, setFilterNoteId, setTab, syncNotes }: SharedProps) {
-  const [syncing, setSyncing] = useState(false)
-  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+function NotesPage({ data, updateNote, setEditingNote, setFilterNoteId, setTab }: SharedProps) {
+  const [batchMode, setBatchMode] = useState(false)
 
   const notesWithLeads = useMemo(() => data.notes.map(n => ({
     ...n, leads: data.customers.filter(c => c.sourceNoteId === n.id).length,
   })), [data.notes, data.customers])
 
-  const handleSync = async () => {
-    if (!window.electronAPI?.syncXHSNotes) {
-      setSyncMsg('同步功能仅在桌面应用中可用')
-      return
-    }
-    setSyncing(true)
-    setSyncMsg(null)
-    try {
-      const result = await window.electronAPI.syncXHSNotes()
-      if (result.success && result.notes.length > 0) {
-        const { added, updated, removed } = syncNotes(result.notes)
-        const parts = [`新增 ${added} 条`, `更新 ${updated} 条`]
-        if (removed > 0) parts.push(`清理 ${removed} 条旧笔记`)
-        setSyncMsg(parts.join('，'))
-      } else if (result.success && result.notes.length === 0) {
-        setSyncMsg('CSV 中暂无笔记数据，请先运行 xhs-monitor 采集')
-      } else {
-        setSyncMsg(result.message || '导入失败')
-      }
-    } catch {
-      setSyncMsg('导入异常，请重试')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   return (
     <div className="crm-page">
       <div className="crm-toolbar">
         <span className="crm-page-subtitle">{notesWithLeads.length} 条笔记 · {notesWithLeads.filter(n => n.status === 'published').length} 已发布</span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {syncMsg && <span className="crm-sync-msg">{syncMsg}</span>}
-          <button className="crm-btn-primary" onClick={handleSync} disabled={syncing}>
-            {syncing ? '同步中...' : '同步小红书笔记'}
-          </button>
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+          {batchMode ? (
+            <>
+              <button className="crm-btn-ghost" onClick={() => setBatchMode(false)}>完成</button>
+            </>
+          ) : (
+            <>
+              <button className="crm-btn-ghost" onClick={() => setBatchMode(true)}>管理</button>
+              <button className="crm-btn-primary" onClick={() => setEditingNote({})}><Plus size={14} /> 新增笔记</button>
+            </>
+          )}
         </div>
       </div>
       <div className="crm-table-wrap">
         <table className="crm-table">
           <thead>
             <tr>
-              <th>笔记标题</th><th style={{ width: 90 }}>发布时间</th><th style={{ width: 70 }}>状态</th>
-              <th style={{ width: 80, textAlign: 'right' }}>浏览</th><th style={{ width: 60, textAlign: 'right' }}>赞</th>
-              <th style={{ width: 60, textAlign: 'right' }}>评论</th>
+              <th>笔记标题</th>
+              <th style={{ width: 100 }}>发布时间</th>
+              <th style={{ width: 90 }}>状态</th>
               <th style={{ width: 100, textAlign: 'center' }}>带来客户</th>
             </tr>
           </thead>
           <tbody>
             {notesWithLeads.map(n => (
-              <tr key={n.id} onClick={() => setEditingNote(n)}>
+              <tr key={n.id} onClick={() => { if (!batchMode) setEditingNote(n) }}>
                 <td className="crm-note-title">{n.title}</td>
                 <td className="crm-muted">{n.publishDate ? fmtDate(n.publishDate) : '—'}</td>
-                <td><span className={`crm-tag ${n.status === 'published' ? 'stage-closed' : 'stage-lead'}`}>{n.status === 'published' ? '已发布' : '草稿'}</span></td>
-                <td className="crm-mono crm-num">{n.views.toLocaleString()}</td>
-                <td className="crm-mono crm-num">{n.likes}</td>
-                <td className="crm-mono crm-num">{n.comments}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <select
+                    className="crm-table-select"
+                    value={n.status}
+                    onChange={e => updateNote(n.id, { status: e.target.value as Note['status'] })}
+                  >
+                    <option value="published">已发布</option>
+                    <option value="draft">草稿</option>
+                  </select>
+                </td>
                 <td style={{ textAlign: 'center' }}>
                   <button className="crm-link-btn" onClick={e => { e.stopPropagation(); setFilterNoteId(n.id); setTab('customers') }}>
                     {n.leads} 人 <ChevronRight size={12} />
@@ -881,6 +839,75 @@ function NotesPage({ data, setEditingNote, setFilterNoteId, setTab, syncNotes }:
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ==================== Contract Detail Modal ====================
+function ContractDetailModal({ contract, onSave, onDelete, onClose }: {
+  contract: Customer
+  onSave: (id: string, upd: Partial<Customer>) => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState({
+    name: contract.name, projectId: contract.projectId || '',
+    style: contract.style, dealAmount: contract.dealAmount?.toString() || '',
+    notes: contract.notes || '',
+  })
+  const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
+
+  return (
+    <div className="crm-modal-overlay" onClick={onClose}>
+      <div className="crm-modal crm-modal-sm" onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-header">
+          <span className="crm-modal-title">合同详情</span>
+          <button className="crm-modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="crm-modal-body">
+          <div className="crm-form-row">
+            <div className="crm-form-group" style={{ flex: 2 }}>
+              <label className="crm-form-label">客户姓名</label>
+              <input className="crm-form-input" value={form.name} onChange={e => h('name', e.target.value)} />
+            </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">合同编号</label>
+              <input className="crm-form-input" value={form.projectId} onChange={e => h('projectId', e.target.value)} />
+            </div>
+          </div>
+          <div className="crm-form-row">
+            <div className="crm-form-group">
+              <label className="crm-form-label">风格</label>
+              <select className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                <option value="意式极简">意式极简</option>
+                <option value="法式风格">法式风格</option>
+              </select>
+            </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">合同金额（元）*</label>
+              <input type="number" className="crm-form-input" value={form.dealAmount} onChange={e => h('dealAmount', e.target.value)} />
+            </div>
+          </div>
+          <div className="crm-form-group">
+            <label className="crm-form-label">备注</label>
+            <textarea className="crm-form-textarea" value={form.notes} onChange={e => h('notes', e.target.value)} rows={2} />
+          </div>
+        </div>
+        <div className="crm-modal-footer">
+          <button className="crm-btn-ghost crm-btn-danger" onClick={onDelete}>删除</button>
+          <div style={{ flex: 1 }} />
+          <button className="crm-btn-ghost" onClick={onClose}>取消</button>
+          <button className="crm-btn-primary" onClick={() => {
+            if (!form.name.trim() || !form.dealAmount) return
+            onSave(contract.id, {
+              name: form.name, projectId: form.projectId || undefined,
+              style: form.style, dealAmount: parseInt(form.dealAmount) || 0,
+              notes: form.notes,
+            })
+          }}>保存</button>
+        </div>
       </div>
     </div>
   )
@@ -951,8 +978,7 @@ function CustomerModal({ customer, notes, onSave, onDelete, onClose }: {
             <div className="crm-form-group"><label className="crm-form-label">风格</label>
               <select className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)}>
                 <option value="">-- 选择 --</option>
-                <option value="意式极简">意式极简</option>
-                <option value="法式风格">法式风格</option>
+                <option value="意式极简">意式极简</option><option value="法式风格">法式风格</option>
               </select>
             </div>
           </div>
@@ -984,9 +1010,9 @@ function NoteModal({ note, onSave, onClose }: {
 }) {
   const [form, setForm] = useState({
     title: note.title || '', publishDate: note.publishDate || '',
-    status: note.status || 'draft', views: note.views || 0, likes: note.likes || 0, comments: note.comments || 0,
+    status: note.status || 'draft',
   })
-  const h = (f: string, v: string | number) => setForm(p => ({ ...p, [f]: v }))
+  const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
 
   return (
     <div className="crm-modal-overlay" onClick={onClose}>
@@ -1013,17 +1039,108 @@ function NoteModal({ note, onSave, onClose }: {
               <input type="date" className="crm-form-input" value={form.publishDate} onChange={e => h('publishDate', e.target.value)} />
             </div>
           </div>
-          {form.status === 'published' && (
-            <div className="crm-form-row">
-              <div className="crm-form-group"><label className="crm-form-label">浏览</label><input type="number" className="crm-form-input" value={form.views} onChange={e => h('views', parseInt(e.target.value) || 0)} /></div>
-              <div className="crm-form-group"><label className="crm-form-label">赞</label><input type="number" className="crm-form-input" value={form.likes} onChange={e => h('likes', parseInt(e.target.value) || 0)} /></div>
-              <div className="crm-form-group"><label className="crm-form-label">评论</label><input type="number" className="crm-form-input" value={form.comments} onChange={e => h('comments', parseInt(e.target.value) || 0)} /></div>
-            </div>
-          )}
         </div>
         <div className="crm-modal-footer">
           <button className="crm-btn-ghost" onClick={onClose}>取消</button>
           <button className="crm-btn-primary" onClick={() => { if (form.title.trim()) onSave({ id: note.id, ...form }) }}>保存</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ==================== Contract Modal ====================
+function ContractModal({ customers, onSave, onClose }: {
+  customers: Customer[]
+  onSave: (c: Partial<Customer>) => void
+  onClose: () => void
+}) {
+  const [form, setForm] = useState({
+    name: '', projectId: '', style: '', dealAmount: '', notes: '',
+    linkMode: 'existing' as 'existing' | 'new',
+    linkedId: '',
+  })
+  const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
+
+  const selectedCust = customers.find(c => c.id === form.linkedId)
+
+  return (
+    <div className="crm-modal-overlay" onClick={onClose}>
+      <div className="crm-modal crm-modal-sm" onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-header">
+          <span className="crm-modal-title">新增合同</span>
+          <button className="crm-modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="crm-modal-body">
+          <div className="crm-form-group">
+            <label className="crm-form-label">关联客户 *</label>
+            <select className="crm-form-input" value={form.linkMode === 'existing' ? form.linkedId : '__new__'}
+              onChange={e => {
+                const v = e.target.value
+                if (v === '__new__') {
+                  h('linkMode', 'new'); h('linkedId', ''); h('name', ''); h('style', '')
+                } else {
+                  h('linkMode', 'existing'); h('linkedId', v)
+                  const c = customers.find(x => x.id === v)
+                  if (c) { h('name', c.name); h('style', c.style) }
+                }
+              }}>
+              <option value="">-- 选择已有客户 --</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name} · {c.phone} · {STAGES.find(s => s.id === c.stage)?.label || c.stage}</option>
+              ))}
+              <option value="__new__">+ 新建客户</option>
+            </select>
+            {form.linkMode === 'new' && (
+              <input className="crm-form-input" style={{ marginTop: 8 }} value={form.name}
+                onChange={e => h('name', e.target.value)} placeholder="输入新客户姓名" />
+            )}
+          </div>
+          <div className="crm-form-row">
+            <div className="crm-form-group">
+              <label className="crm-form-label">合同编号</label>
+              <input className="crm-form-input" value={form.projectId} onChange={e => h('projectId', e.target.value)} placeholder="如 P2026-001" />
+            </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">风格</label>
+              <select className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                <option value="意式极简">意式极简</option>
+                <option value="法式风格">法式风格</option>
+              </select>
+            </div>
+          </div>
+          {selectedCust && (
+            <div className="crm-cust-link-info">
+              关联客户：{selectedCust.name} · {selectedCust.phone} · {selectedCust.houseType || '未填户型'} · {selectedCust.budget || '未填预算'} — 原客户信息不变，新建一份合同记录
+            </div>
+          )}
+          <div className="crm-form-row">
+            <div className="crm-form-group">
+              <label className="crm-form-label">合同金额（元）*</label>
+              <input type="number" className="crm-form-input" value={form.dealAmount} onChange={e => h('dealAmount', e.target.value)} placeholder="如 28000" />
+            </div>
+          </div>
+          <div className="crm-form-group">
+            <label className="crm-form-label">备注</label>
+            <textarea className="crm-form-textarea" value={form.notes} onChange={e => h('notes', e.target.value)} rows={2} />
+          </div>
+        </div>
+        <div className="crm-modal-footer">
+          <button className="crm-btn-ghost" onClick={onClose}>取消</button>
+          <button className="crm-btn-primary" onClick={() => {
+            if (!form.name.trim() || !form.dealAmount) return
+            onSave({
+              name: form.name,
+              phone: selectedCust?.phone || '', wechat: selectedCust?.wechat || '',
+              houseType: selectedCust?.houseType || '', budget: selectedCust?.budget || '',
+              source: selectedCust?.source || 'other', sourceNoteId: selectedCust?.sourceNoteId || null,
+              stage: 'closed',
+              style: form.style || selectedCust?.style || '',
+              dealAmount: parseInt(form.dealAmount) || 0, notes: form.notes,
+              followUpDate: '', followUpNote: '', projectId: form.projectId || undefined,
+            })
+          }}>保存合同</button>
         </div>
       </div>
     </div>
