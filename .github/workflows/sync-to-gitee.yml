@@ -62,7 +62,7 @@ jobs:
           print(f'Downloaded {len(assets)} assets')
           "
 
-      - name: Create Gitee Release
+      - name: Get or Create Gitee Release
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
@@ -75,27 +75,49 @@ jobs:
           target = r.get('target_commitish', 'master')
           token = os.environ['GITEE_TOKEN']
 
-          payload = json.dumps({
-              'access_token': token,
-              'tag_name': tag,
-              'name': name,
-              'body': body,
-              'target_commitish': target,
-              'prerelease': False
-          })
-
-          resp = subprocess.check_output(['curl', '-s', '-X', 'POST',
-              'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases',
-              '-H', 'Content-Type: application/json',
-              '-d', payload]).decode()
-
-          print(f'Create release response: {resp}')
+          # 1. Try to find existing release by tag
+          resp = subprocess.check_output(['curl', '-s',
+              f'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/tags/{tag}?access_token={token}']).decode()
           data = json.loads(resp)
-          if 'id' not in data:
-              print(f'ERROR: Failed to create release: {data}')
-              exit(1)
-          release_id = data['id']
-          print(f'Created release id: {release_id}')
+          release_id = data.get('id', 0)
+
+          if release_id:
+              print(f'Found existing release id: {release_id}')
+              # Delete old assets
+              for asset in data.get('assets', []):
+                  asset_id = asset.get('id')
+                  if not asset_id: continue
+                  name = asset.get('name', '')
+                  if name.endswith('.zip') or name.endswith('.tar.gz'):
+                      print(f'Skip auto-generated: {name}')
+                      continue
+                  print(f'Deleting old asset: {name}')
+                  try:
+                      subprocess.check_output(['curl', '-s', '-X', 'DELETE',
+                          f'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/{release_id}/attach_files/{asset_id}?access_token={token}']).decode()
+                  except Exception as e:
+                      print(f'Delete failed (non-fatal): {e}')
+          else:
+              # 2. Create new release
+              payload = json.dumps({
+                  'access_token': token,
+                  'tag_name': tag,
+                  'name': name,
+                  'body': body,
+                  'target_commitish': target,
+                  'prerelease': False
+              })
+              resp = subprocess.check_output(['curl', '-s', '-X', 'POST',
+                  'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases',
+                  '-H', 'Content-Type: application/json',
+                  '-d', payload]).decode()
+              print(f'Create release response: {resp}')
+              data = json.loads(resp)
+              if 'id' not in data:
+                  print(f'ERROR: Failed to create release: {data}')
+                  exit(1)
+              release_id = data['id']
+              print(f'Created release id: {release_id}')
 
           with open(os.environ['GITHUB_ENV'], 'a') as env:
               env.write(f'RELEASE_ID={release_id}\n')
