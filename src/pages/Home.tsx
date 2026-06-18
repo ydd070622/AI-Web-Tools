@@ -578,7 +578,7 @@ export default function Home({ onSelect, searchQuery, searchEngineId, searchUrl,
         <div className="home-bg-noise" />
       </div>
       <div className="home-content">
-        <h1 className="home-title">LingWorks</h1>
+        <img src="./home-logo.png" alt="LingWorks" className="home-title-logo" />
         <p className="home-subtitle">Ai个人工作台</p>
         <div className="home-search-wrap">
           <input
