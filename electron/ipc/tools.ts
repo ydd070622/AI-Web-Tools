@@ -154,27 +154,49 @@ export function registerTools(mainWindow: BrowserWindow | null) {
   registerAgentShortcut()
 
   ipcMain.handle('register-shortcuts', async (_e, bindings: Record<string, string>) => {
-    // Diff-based update: only unregister removed/changed shortcuts, never touch Ctrl+Space or DevTools
+    // Diff-based update: only unregister removed/changed shortcuts.
+    // Skip Ctrl+Space in unregistration — it's handled by registerAgentShortcut (with retry),
+    // but still try to register it here as a fallback in case the retry hasn't succeeded yet.
     const oldKeys = Object.keys(prevBindings)
-    const newKeys = Object.keys(bindings)
+    const newKeys = Object.keys(bindings).filter(k => k !== 'Ctrl+Space')
 
-    // Unregister shortcuts that were removed or changed
+    // Unregister shortcuts that were removed or changed (skip Ctrl+Space)
     for (const combo of oldKeys) {
+      if (combo === 'Ctrl+Space') continue
       if (!newKeys.includes(combo) || prevBindings[combo] !== bindings[combo]) {
         try { globalShortcut.unregister(combo) } catch {}
       }
     }
 
-    // Register new or changed shortcuts
-    for (const [combo, targetId] of Object.entries(bindings)) {
-      if (!oldKeys.includes(combo) || prevBindings[combo] !== targetId) {
+    // Register new or changed shortcuts (excluding Ctrl+Space from diff check)
+    for (const combo of newKeys) {
+      if (!oldKeys.includes(combo) || prevBindings[combo] !== bindings[combo]) {
         try {
-          globalShortcut.register(combo, () => {
-            mainWindow?.webContents.send('shortcut-trigger', targetId)
+          const ok = globalShortcut.register(combo, () => {
+            mainWindow?.webContents.send('shortcut-trigger', bindings[combo])
           })
+          if (!ok) {
+            console.warn(`[tools] Shortcut '${combo}' registration failed — may be taken by another app`)
+          } else {
+            console.log(`[tools] Shortcut '${combo}' → ${bindings[combo]}`)
+          }
         } catch (e) {
-          console.error('Failed to register shortcut:', combo, e)
+          console.error('[tools] Failed to register shortcut:', combo, e)
         }
+      }
+    }
+
+    // Always try to register Ctrl+Space as a fallback (registerAgentShortcut is primary)
+    if (bindings['Ctrl+Space']) {
+      try {
+        const ok = globalShortcut.register('Ctrl+Space', () => {
+          mainWindow?.webContents.send('shortcut-trigger', 'agent-panel')
+        })
+        if (ok) {
+          console.log('[tools] Ctrl+Space fallback registration succeeded via register-shortcuts')
+        }
+      } catch (e) {
+        // Silent — registerAgentShortcut has its own retry
       }
     }
 
