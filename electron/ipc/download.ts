@@ -6,7 +6,6 @@ import * as path from 'path'
 import * as fs from 'fs'
 
 const downloadItems = new Map<string, Electron.DownloadItem>()
-const activeFetches = new Set<string>()
 
 // All known site IDs that use persistent partition in webviews
 const KNOWN_PARTITIONS = [
@@ -92,26 +91,24 @@ export function registerDownload(mainWindow: BrowserWindow | null) {
 
 /**
  * Register will-download handler on a given Electron Session.
- * Works for both main window session and persistent webview partitions.
+ * Uses native Electron download (item.setSavePath) for reliability.
  */
 function attachDownloadHandler(sess: Electron.Session, mainWindow: BrowserWindow | null) {
   if (handledSessions.has(sess)) return
   handledSessions.add(sess)
   console.log('[download] attachDownloadHandler: registering will-download on session')
 
-  sess.on('will-download', async (event, item) => {
-    event.preventDefault()
+  sess.on('will-download', (_event, item) => {
     const name = item.getFilename()
-    const url = item.getURL()
-    const totalBytes = item.getTotalBytes()
     console.log('[download] will-download FIRED:', name)
 
-    // Synchronous URL lock prevents double-fetch when webview re-triggers
-    if (activeFetches.has(url)) {
-      console.log('[download] DEDUP skip (already fetching):', url)
-      return
+    // Dedup: cancel if same filename already downloading
+    for (const [, dl] of downloadItems) {
+      if (dl.getFilename() === name && dl.getState() === 'progressing') {
+        item.cancel()
+        return
+      }
     }
-    activeFetches.add(url)
 
     // Resolve save path (with dedup)
     const dir = getDownloadPath()
@@ -124,68 +121,35 @@ function attachDownloadHandler(sess: Electron.Session, mainWindow: BrowserWindow
       counter++
     }
 
+    item.setSavePath(filePath)
+
     const dlId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    downloadItems.set(dlId, item)
 
     mainWindow?.webContents.send('download-started', {
       id: dlId,
       filename: name,
-      totalBytes,
+      totalBytes: item.getTotalBytes(),
       receivedBytes: 0,
       state: 'progress',
     })
 
-    try {
-      console.log('[download] fetch via session:', url)
-      const response = await sess.fetch(url)
+    item.on('updated', () => {
+      mainWindow?.webContents.send('download-progress', {
+        id: dlId,
+        receivedBytes: item.getReceivedBytes(),
+        totalBytes: item.getTotalBytes(),
+      })
+    })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const cl = response.headers.get('content-length')
-      const contentLength = cl ? parseInt(cl, 10) : totalBytes
-      const body = response.body
-
-      if (body) {
-        const reader = body.getReader()
-        const writeStream = fs.createWriteStream(filePath)
-        let received = 0
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            received += value.length
-            writeStream.write(Buffer.from(value))
-
-            const total = contentLength > 0 ? contentLength : received
-            mainWindow?.webContents.send('download-progress', {
-              id: dlId,
-              receivedBytes: received,
-              totalBytes: total,
-            })
-          }
-        } finally {
-          writeStream.end()
-        }
-
-        await new Promise<void>((resolve, reject) => {
-          writeStream.on('finish', resolve)
-          writeStream.on('error', reject)
-        })
+    item.on('done', (_event, state) => {
+      downloadItems.delete(dlId)
+      if (state === 'completed') {
+        mainWindow?.webContents.send('download-completed', { id: dlId, filePath })
       } else {
-        const buf = Buffer.from(await response.arrayBuffer())
-        fs.writeFileSync(filePath, buf)
+        mainWindow?.webContents.send('download-failed', { id: dlId })
       }
-
-      console.log('[download] saved:', filePath)
-      mainWindow?.webContents.send('download-completed', { id: dlId, filePath })
-    } catch (e: any) {
-      console.error('[download] fetch failed:', e.message)
-      mainWindow?.webContents.send('download-failed', { id: dlId })
-    } finally {
-      activeFetches.delete(url)
-    }
+    })
   })
 }
 
