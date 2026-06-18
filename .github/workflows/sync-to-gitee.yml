@@ -83,15 +83,15 @@ jobs:
 
           if release_id:
               print(f'Found existing release id: {release_id}')
-              # Delete old assets
+              # Delete old non-auto assets
               for asset in data.get('assets', []):
                   asset_id = asset.get('id')
                   if not asset_id: continue
-                  name = asset.get('name', '')
-                  if name.endswith('.zip') or name.endswith('.tar.gz'):
-                      print(f'Skip auto-generated: {name}')
+                  aname = asset.get('name', '')
+                  if aname.endswith('.zip') or aname.endswith('.tar.gz'):
+                      print(f'Skip auto-generated: {aname}')
                       continue
-                  print(f'Deleting old asset: {name}')
+                  print(f'Deleting old asset: {aname}')
                   try:
                       subprocess.check_output(['curl', '-s', '-X', 'DELETE',
                           f'https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/{release_id}/attach_files/{asset_id}?access_token={token}']).decode()

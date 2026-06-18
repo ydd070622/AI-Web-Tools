@@ -20,16 +20,20 @@ let downloading = false
 
 export async function checkForUpdates(mainWindow: BrowserWindow) {
   try {
-    // Gitee is much faster in China than GitHub
+    // Check Gitee for version (fast in China, no VPN needed)
     const res = await net.fetch('https://gitee.com/api/v5/repos/ydd070622/ai-web-tools/releases/latest')
     if (!res.ok) return
-    const data = await res.json() as { tag_name?: string; body?: string; assets?: { browser_download_url?: string }[] }
+    const data = await res.json() as { tag_name?: string; body?: string; assets?: { browser_download_url?: string; name?: string }[] }
     const remoteVersion = (data.tag_name || '').replace(/^v/, '')
     const localVersion = app.getVersion()
     if (!remoteVersion || !compareVersions(localVersion, remoteVersion)) return
 
-    const downloadUrl = data.assets?.[0]?.browser_download_url
-    if (!downloadUrl) return
+    // Prefer .exe from Gitee assets, fall back to GitHub download URL
+    let downloadUrl = data.assets?.find(a => a.name?.endsWith('.exe'))?.browser_download_url
+    if (!downloadUrl) {
+      // No .exe on Gitee yet — use GitHub release (global CDN, reliable)
+      downloadUrl = `https://github.com/ydd070622/LingWorks/releases/download/v${remoteVersion}/LingWorks Setup ${remoteVersion}.exe`
+    }
 
     // Just notify renderer — do NOT auto-download
     mainWindow.webContents.send('update-available', {

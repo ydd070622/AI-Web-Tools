@@ -444,15 +444,6 @@ export default function App() {
     <div className={`app-layout${isMaximized ? '' : ' app-rounded'}`}>
       <div className="window-titlebar" onMouseDown={onTitleMouseDown}>
         <span className="titlebar-label">LingWorks</span>
-        {updateInfo && (
-          <button
-            className="titlebar-update-btn"
-            onClick={() => setShowUpdateDialog(true)}
-            title={'发现新版本 v' + updateInfo.version}
-          >
-            Update
-          </button>
-        )}
        <span className="titlebar-drag-area" onDoubleClick={() => window.electronAPI?.maximizeWindow()} />
         <button
           className="titlebar-home-btn"
@@ -477,6 +468,15 @@ export default function App() {
           <span className={`titlebar-agent-dot${agentOpen ? '' : ' off'}`} />
           <span className="titlebar-agent-key">Ctrl+Space</span>
         </button>
+        {updateInfo && (
+          <button
+            className="titlebar-update-btn"
+            onClick={() => setShowUpdateDialog(true)}
+            title={'发现新版本 v' + updateInfo.version}
+          >
+            Update
+          </button>
+        )}
         <div className="titlebar-btns">
           <button className="traffic-btn traffic-minimize" onClick={() => window.electronAPI?.minimizeWindow()} title="最小化">─</button>
           <button className="traffic-btn traffic-maximize" onClick={() => window.electronAPI?.maximizeWindow()} title={isMaximized ? '还原' : '最大化'}>{isMaximized ? '❐' : '☐'}</button>
