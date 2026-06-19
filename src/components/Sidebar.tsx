@@ -74,7 +74,7 @@ export default function Sidebar({ items, activeId, theme, collapsed, collapsedSe
     accounts: makeIcon('accounts', '常用账号'),
     skyun: 'SK', mitce: 'MC',
     duannao: '端', zhisuan: '智', onethingai: 'AI',
-    crm: <Users size={16} />,
+    crm: makeIcon('crm', '客户管理'),
   };
 
   const websites = items.filter(i => i.type === 'website')
