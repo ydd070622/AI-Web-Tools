@@ -222,6 +222,11 @@ export default function CRMPanel() {
     persist({ ...data, notes: [...data.notes, n] })
   }, [data, persist])
 
+  const deleteNotes = useCallback((ids: string[]) => {
+    if (!confirm(`确定删除选中的 ${ids.length} 条笔记？`)) return
+    persist({ ...data, notes: data.notes.filter(n => !ids.includes(n.id)) })
+  }, [data, persist])
+
   const followUps = useMemo(() =>
     data.customers.filter(c => c.followUpDate && c.stage !== 'closed')
       .map(c => ({ ...c, diff: daysDiff(c.followUpDate, ts) }))
@@ -234,7 +239,7 @@ export default function CRMPanel() {
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, deleteNotes, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
@@ -327,6 +332,7 @@ interface SharedProps {
   moveCust: (id: string, stage: string) => void
   updateNote: (id: string, upd: Partial<Note>) => void
   addNote: (note: Partial<Note>) => void
+  deleteNotes: (ids: string[]) => void
   viewMode: 'table' | 'kanban'
   setViewMode: (v: 'table' | 'kanban') => void
   filterNoteId: string | null
@@ -781,12 +787,19 @@ function DashboardPage({ data, todayCount }: SharedProps) {
 }
 
 // ==================== 6. Notes Page ====================
-function NotesPage({ data, updateNote, setEditingNote, setFilterNoteId, setTab }: SharedProps) {
+function NotesPage({ data, updateNote, deleteNotes, setEditingNote, setFilterNoteId, setTab }: SharedProps) {
   const [batchMode, setBatchMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const notesWithLeads = useMemo(() => data.notes.map(n => ({
     ...n, leads: data.customers.filter(c => c.sourceNoteId === n.id).length,
   })), [data.notes, data.customers])
+
+  const toggleSel = (id: string) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setSelectedIds(next)
+  }
 
   return (
     <div className="crm-page">
@@ -795,7 +808,10 @@ function NotesPage({ data, updateNote, setEditingNote, setFilterNoteId, setTab }
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
           {batchMode ? (
             <>
-              <button className="crm-btn-ghost" onClick={() => setBatchMode(false)}>完成</button>
+              <button className="crm-btn-danger-outline" disabled={selectedIds.size === 0} onClick={() => {
+                if (selectedIds.size > 0) { deleteNotes(Array.from(selectedIds)); setSelectedIds(new Set()); setBatchMode(false) }
+              }}>删除选中 ({selectedIds.size})</button>
+              <button className="crm-btn-ghost" onClick={() => { setBatchMode(false); setSelectedIds(new Set()) }}>取消</button>
             </>
           ) : (
             <>
@@ -809,6 +825,7 @@ function NotesPage({ data, updateNote, setEditingNote, setFilterNoteId, setTab }
         <table className="crm-table">
           <thead>
             <tr>
+              {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={notesWithLeads.length > 0 && notesWithLeads.every(n => selectedIds.has(n.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(notesWithLeads.map(n => n.id))); else setSelectedIds(new Set()) }} /></th>}
               <th>笔记标题</th>
               <th style={{ width: 100 }}>发布时间</th>
               <th style={{ width: 90 }}>状态</th>
@@ -817,7 +834,8 @@ function NotesPage({ data, updateNote, setEditingNote, setFilterNoteId, setTab }
           </thead>
           <tbody>
             {notesWithLeads.map(n => (
-              <tr key={n.id} onClick={() => { if (!batchMode) setEditingNote(n) }}>
+              <tr key={n.id} onClick={() => { if (batchMode) toggleSel(n.id); else setEditingNote(n) }}>
+                {batchMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(n.id)} onChange={() => toggleSel(n.id)} /></td>}
                 <td className="crm-note-title">{n.title}</td>
                 <td className="crm-muted">{n.publishDate ? fmtDate(n.publishDate) : '—'}</td>
                 <td onClick={e => e.stopPropagation()}>
