@@ -102,9 +102,6 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
         } catch {}
       }
       ;(wv as any).executeJavaScript(`
-        Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
-        Object.defineProperty(navigator,'plugins',{get:function(){return {length:3,item:function(){return null},namedItem:function(){return null},refresh:function(){return false}}}});
-        Object.defineProperty(navigator,'languages',{get:function(){return ['zh-CN','zh','en']}});
         window.open=function(u){if(u)window.location.href=u;return null};
         document.addEventListener('click',function(e){
           var a=e.target.closest('a');
@@ -158,9 +155,6 @@ export default function WebViewPage({ site, visible, onUrlChange }: WebViewPageP
     // Re-inject scripts after full page navigation (did-navigate, not just SPA)
     wv.addEventListener('did-navigate', (() => {
       ;(wv as any).executeJavaScript(`
-        Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
-        Object.defineProperty(navigator,'plugins',{get:function(){return {length:3,item:function(){return null},namedItem:function(){return null},refresh:function(){return false}}}});
-        Object.defineProperty(navigator,'languages',{get:function(){return ['zh-CN','zh','en']}});
         window.open=function(u){if(u)window.location.href=u;return null};
         document.addEventListener('click',function(e){
           var a=e.target.closest('a');

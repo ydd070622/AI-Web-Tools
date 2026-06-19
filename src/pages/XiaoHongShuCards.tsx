@@ -156,7 +156,6 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
       }
       try {
         ;(wv as any).executeJavaScript(`
-          Object.defineProperty(navigator,'webdriver',{get:function(){return false}});
           document.addEventListener('click',function(e){
             var a=e.target.closest('a');
             if(a&&a.target==='_blank'&&a.href){

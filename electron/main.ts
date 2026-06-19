@@ -21,6 +21,7 @@ import { checkForUpdates, registerUpdateIPC } from './updater'
 // ===== App Configuration =====
 app.commandLine.appendSwitch('disable-gpu-sandbox')
 app.commandLine.appendSwitch('disable-features', 'WebDriver')
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
 
 const isDev = !app.isPackaged
 Menu.setApplicationMenu(null)
@@ -86,6 +87,32 @@ function createWindow() {
   // registerWebviewSessionIPC — the renderer calls it on did-attach (when partition
   // is guaranteed to be applied). Pre-registration removed to speed up startup.
   registerWebviewSessionIPC(mainWindow)
+
+  // Inject webview preload to spoof Chrome detection for Google sign-in
+  const webviewPreload = path.join(__dirname, 'webview-preload.js')
+  mainWindow.webContents.on('will-attach-webview', (_event, webPreferences) => {
+    webPreferences.preload = webviewPreload
+    webPreferences.contextIsolation = false
+    webPreferences.nodeIntegration = false
+  })
+
+  // Inject sec-ch-ua headers for main window requests too
+  const secChUaHeaders = (details: any, callback: any) => {
+    details.requestHeaders['sec-ch-ua'] = '"Chromium";v="130", "Not)A;Brand";v="99", "Google Chrome";v="130"'
+    details.requestHeaders['sec-ch-ua-platform'] = '"Windows"'
+    details.requestHeaders['sec-ch-ua-mobile'] = '?0'
+    details.requestHeaders['sec-ch-ua-arch'] = '"x86"'
+    details.requestHeaders['sec-ch-ua-bitness'] = '"64"'
+    details.requestHeaders['sec-ch-ua-full-version'] = '"130.0.6723.44"'
+    details.requestHeaders['sec-ch-ua-full-version-list'] = '"Chromium";v="130.0.6723.44", "Not)A;Brand";v="99.0.0.0", "Google Chrome";v="130.0.6723.44"'
+    details.requestHeaders['sec-ch-ua-model'] = '""'
+    details.requestHeaders['sec-ch-ua-platform-version'] = '"10.0.0"'
+    callback({ requestHeaders: details.requestHeaders })
+  }
+  mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    secChUaHeaders
+  )
 
   // Track all future non-webview windows for download handling
   app.on('web-contents-created', (_, contents) => {
@@ -161,13 +188,33 @@ app.on('web-contents-created', (_e, contents) => {
     }
   )
 
+  // Inject sec-ch-ua Client Hints headers (Google browser detection)
+  contents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
+    (details, callback) => {
+      details.requestHeaders['sec-ch-ua'] = '"Chromium";v="130", "Not)A;Brand";v="99", "Google Chrome";v="130"'
+      details.requestHeaders['sec-ch-ua-platform'] = '"Windows"'
+      details.requestHeaders['sec-ch-ua-mobile'] = '?0'
+      details.requestHeaders['sec-ch-ua-arch'] = '"x86"'
+      details.requestHeaders['sec-ch-ua-bitness'] = '"64"'
+      details.requestHeaders['sec-ch-ua-full-version'] = '"130.0.6723.44"'
+      details.requestHeaders['sec-ch-ua-full-version-list'] = '"Chromium";v="130.0.6723.44", "Not)A;Brand";v="99.0.0.0", "Google Chrome";v="130.0.6723.44"'
+      details.requestHeaders['sec-ch-ua-model'] = '""'
+      details.requestHeaders['sec-ch-ua-platform-version'] = '"10.0.0"'
+      callback({ requestHeaders: details.requestHeaders })
+    }
+  )
+
   // Attach webview download handler
   attachWebviewDownloads(mainWindow)(contents)
 
-  // User-Agent spoofing
-  const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+  // User-Agent spoofing (match Chromium 130 on Windows)
+  const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.44 Safari/537.36'
   contents.setUserAgent(chromeUA)
   contents.session.setUserAgent(chromeUA, 'zh-CN,zh;q=0.9,en;q=0.8')
+
+  // Inject preload to spoof Chrome detection checks
+  contents.session.setPreloads([path.join(__dirname, 'webview-preload.js')])
 
   // Window open handler — intercept new tabs
   contents.setWindowOpenHandler(({ url }) => {
