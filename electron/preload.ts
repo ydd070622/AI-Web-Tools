@@ -120,7 +120,7 @@ window.electronAPI = {
 
   // Memory system
   memorySave: (category: string, content: string) => ipcRenderer.invoke('memory-save', category, content),
-  memoryRecall: (category?: string) => ipcRenderer.invoke('memory-recall', category),
+  memoryRecall: (category?: string, keyword?: string, limit?: number, mode?: 'index' | 'full') => ipcRenderer.invoke('memory-recall', category, keyword, limit, mode),
   memoryDelete: (category: string, search: string) => ipcRenderer.invoke('memory-delete', category, search),
 
   // Update

@@ -351,15 +351,26 @@ const TOOL_DEFS = [
     function: {
       name: 'recall_memory',
       description:
-        '回读之前保存的用户记忆。' +
-        '当用户要求"我之前说过什么"、"回顾记忆"、"帮我查一下记忆"时使用此工具。' +
-        '不传 category 则读取所有记忆。',
+        '回读之前保存的用户记忆（按需检索）。' +
+        '你的 system prompt 里已有 profile 全文和其他分类的索引（条数+最近标题）。' +
+        '当用户询问 work/preferences/notes 的具体细节时，用此工具按 keyword 检索实际内容。' +
+        '例如用户问"我之前说的亚马逊备货计划"，传 keyword="亚马逊" 或 "备货" 检索。' +
+        '⚠️ 不要凭索引标题猜测细节，必须调本工具拿到真实内容再回答。' +
+        'profile 信息已自动加载，无需用本工具重复拉取。',
       parameters: {
         type: 'object',
         properties: {
           category: {
             type: 'string',
-            description: '可选，读取指定分类的记忆。不传则读取全部',
+            description: '可选，只在指定分类中检索。不传则检索全部分类',
+          },
+          keyword: {
+            type: 'string',
+            description: '可选，关键词检索，只返回内容包含该关键词的记忆条目（大小写不敏感）。建议用用户问题中的核心词',
+          },
+          limit: {
+            type: 'number',
+            description: '每分类最多返回条数，默认20',
           },
         },
         required: [],
@@ -575,13 +586,47 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const city = await detectCity()
 
-  // Load user memories
+  // Load user memories — layered injection:
+  //   - profile: full content (high-frequency, low-volume), truncated to 2000 chars
+  //   - work/preferences/notes: index only (count + latest title); details fetched on-demand via recall_memory tool
   let memoryContent = ''
   try {
     if (window.electronAPI?.memoryRecall) {
-      const result = await window.electronAPI.memoryRecall()
-      if (result?.content && result.content.trim()) {
-        memoryContent = '\n\n---\n\n## 用户记忆（你之前记住的关于用户的信息，请在回答时参考）\n\n' + result.content
+      const [profileRes, indexRes] = await Promise.all([
+        window.electronAPI.memoryRecall('profile', undefined, undefined, 'full'),
+        window.electronAPI.memoryRecall(undefined, undefined, undefined, 'index'),
+      ])
+
+      const parts: string[] = []
+
+      // 1. Profile full content (truncated defensively to 2000 chars)
+      if (profileRes?.mode === 'full' && Array.isArray(profileRes.entries) && profileRes.entries.length > 0) {
+        const profileText = profileRes.entries
+          .map(e => `${e.heading}\n${e.content}`)
+          .join('\n\n')
+        const truncated = profileText.length > 2000
+        const profileFinal = truncated ? profileText.slice(0, 2000) + '\n...(档案内容已截断)' : profileText
+        parts.push('### 用户档案（已加载，回答时直接参考，无需再调工具）\n\n' + profileFinal)
+      }
+
+      // 2. Other categories index (count + latest title)
+      if (indexRes?.mode === 'index' && Array.isArray(indexRes.categories) && indexRes.categories.length > 0) {
+        const otherCats = indexRes.categories.filter(c => c.category !== 'profile')
+        if (otherCats.length > 0) {
+          const indexLines = otherCats.map(c => {
+            const titlePart = c.latestTitle ? `，最近：${c.latestDate || '未知日期'} "${c.latestTitle}"` : ''
+            return `- ${c.category}: ${c.count} 条${titlePart}`
+          })
+          parts.push(
+            '### 其他记忆索引（仅显示条数和最近标题，细节需用 recall_memory 工具按关键词检索）\n\n' +
+            indexLines.join('\n') +
+            '\n\n⚠️ 用户问到具体记忆细节时，必须调用 recall_memory 工具（传 keyword 做关键词检索）拉取实际内容，不要凭索引标题猜测。'
+          )
+        }
+      }
+
+      if (parts.length > 0) {
+        memoryContent = '\n\n---\n\n## 用户记忆\n\n' + parts.join('\n\n')
       }
     }
   } catch { /* ignore memory loading errors */ }
@@ -626,8 +671,12 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n3.7 用户要求打开文件 → 用 file_open（系统默认程序打开）' +
     '\n3.8 用户要求查看文件位置 → 用 file_show（在资源管理器中高亮显示）' +
     '\n4. 用户要求记住/保存信息 → 用 save_memory。\n  ⚠️ 关键：保存前必须先总结提炼用户信息，用结构化 Markdown 列表格式（如"- 岗位：xxx"、"- 擅长：xxx"），不要照搬用户原话。\n  分类选择：个人信息/身份/职业→profile，工作内容/项目→work，偏好/习惯→preferences，零散备忘→notes。保存后简要确认即可' +
-    '\n4.1 用户要求回顾记忆/问之前说过什么 → 用 recall_memory' +
-    '\n4.2 用户要求忘掉/删除某条记忆 → 用 delete_memory' +
+    '\n4.1 用户要求回顾记忆/问之前说过什么 → 用 recall_memory 工具检索。' +
+    '\n  ⚠️ 重要：你的 system prompt 里已有 profile 全文 + 其他分类（work/preferences/notes）的索引（条数+最近标题）。' +
+    '\n  - profile 信息（用户身份/职业/公司）已自动加载，直接使用即可，不要为 profile 调用 recall_memory。' +
+    '\n  - 用户问 work/preferences/notes 的具体细节时，从用户问题提取关键词（如"亚马逊备货"→keyword="亚马逊"），调用 recall_memory 检索真实内容。' +
+    '\n  - 绝对不要凭索引标题猜测细节后回答，也不要直接说"没记住"——先检索再说。' +
+    '\n  - 用户说"忘掉/删掉某条记忆" → 用 delete_memory' +
     '\n5. 用户问 DeepSeek 余额/用量/Token/费用 → 只需调用 query_deepseek_usage 工具（会自动跳转到 dashboard），然后基于返回的数据用自然语言输出完整回答（余额、各模型Token、每日费用明细）' +
     '\n6. 在回答中自然引用信息来源（如"据XX网站消息……"），直接融入正文流中。**禁止用 > 块引用或单独的来源列表格式**' +
     '\n\n行为规范：' +
@@ -1041,10 +1090,13 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
     }
 
     case 'recall_memory': {
-      const category = args.category
+      const category = typeof args.category === 'string' ? args.category : undefined
+      const keyword = typeof args.keyword === 'string' ? args.keyword : undefined
+      const limit = typeof args.limit === 'number' ? args.limit : undefined
       if (window.electronAPI?.memoryRecall) {
         try {
-          const result = await window.electronAPI.memoryRecall(typeof category === 'string' ? category : undefined)
+          // Tool calls always want full content, not index
+          const result = await window.electronAPI.memoryRecall(category, keyword, limit, 'full')
           return JSON.stringify(result, null, 2)
         } catch (e: any) {
           return JSON.stringify({ error: `回读记忆失败: ${e.message}` })

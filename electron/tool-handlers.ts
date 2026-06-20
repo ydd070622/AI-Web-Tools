@@ -579,38 +579,134 @@ ipcMain.handle('memory-save', async (_ev, category: string, content: string) => 
   }
 })
 
+// ===== Memory Entry Splitting =====
+// Splits a single memory markdown file into individual entries by `### ` headings.
+// Each entry = { heading, date, content, raw }. File-level `# category` header and
+// default intro text (e.g. profile.md placeholder) are skipped (not returned as entries).
+interface MemoryEntry {
+  heading: string   // full heading line, e.g. "### 2026-06-15 14:30"
+  date: string      // parsed YYYY-MM-DD (empty if unparseable)
+  content: string   // body text under the heading (trimmed)
+  raw: string       // full block including heading + body
+}
+
+function splitMemoryEntries(rawMarkdown: string): MemoryEntry[] {
+  const lines = rawMarkdown.split('\n')
+  const entries: MemoryEntry[] = []
+  let currentHeading = ''
+  let currentBody: string[] = []
+  let inEntry = false
+
+  const flush = () => {
+    if (!inEntry) return
+    const content = currentBody.join('\n').trim()
+    // Parse date from heading: "### 2026-06-15 14:30" → "2026-06-15"
+    const dateMatch = currentHeading.match(/^###\s+(\d{4}-\d{2}-\d{2})/)
+    const date = dateMatch ? dateMatch[1] : ''
+    entries.push({
+      heading: currentHeading,
+      date,
+      content,
+      raw: (currentHeading + '\n' + content).trim(),
+    })
+    currentHeading = ''
+    currentBody = []
+    inEntry = false
+  }
+
+  for (const line of lines) {
+    if (line.startsWith('### ')) {
+      flush()
+      currentHeading = line
+      inEntry = true
+    } else if (inEntry) {
+      currentBody.push(line)
+    }
+    // Lines before the first `### ` (file header `# category` + intro text) are skipped
+  }
+  flush()
+  return entries
+}
+
+// Extract a short title from an entry's content: first non-empty line, truncated.
+function entryTitle(entry: MemoryEntry): string {
+  const firstLine = entry.content.split('\n').map(l => l.trim()).find(l => l) || ''
+  // Strip markdown list/heading markers for a cleaner title
+  const cleaned = firstLine.replace(/^[-*]\s*/, '').replace(/^#+\s*/, '').trim()
+  return cleaned.length > 40 ? cleaned.slice(0, 40) + '...' : cleaned
+}
+
 // ===== IPC Handler: memory_recall =====
-ipcMain.handle('memory-recall', async (_ev, category?: string) => {
+ipcMain.handle('memory-recall', async (_ev, category?: string, keyword?: string, limit?: number, mode?: 'index' | 'full') => {
   try {
-    console.log('[memory-recall] Category:', category || 'all')
+    console.log('[memory-recall] Category:', category || 'all', 'keyword:', keyword || '', 'mode:', mode || 'full')
     ensureMemoriesDir()
-    
-    const allContent: string[] = []
-    
+
+    const memDir = getMemoriesDir()
+    const topicsDir = path.join(memDir, 'topics')
+
+    // Build the list of (category, filePath) to scan
+    const targets: Array<{ category: string; filePath: string }> = []
     if (category) {
       const filePath = category === 'profile'
-        ? path.join(getMemoriesDir(), 'profile.md')
-        : path.join(getMemoriesDir(), 'topics', `${category}.md`)
-      if (fs.existsSync(filePath)) {
-        allContent.push(fs.readFileSync(filePath, 'utf-8'))
-      }
+        ? path.join(memDir, 'profile.md')
+        : path.join(topicsDir, `${category}.md`)
+      if (fs.existsSync(filePath)) targets.push({ category, filePath })
     } else {
-      const profilePath = path.join(getMemoriesDir(), 'profile.md')
-      if (fs.existsSync(profilePath)) {
-        allContent.push(fs.readFileSync(profilePath, 'utf-8'))
-      }
-      const topicsDir = path.join(getMemoriesDir(), 'topics')
+      // profile first, then topics in sorted order (preserves existing behavior)
+      const profilePath = path.join(memDir, 'profile.md')
+      if (fs.existsSync(profilePath)) targets.push({ category: 'profile', filePath: profilePath })
       if (fs.existsSync(topicsDir)) {
         const files = fs.readdirSync(topicsDir).filter(f => f.endsWith('.md')).sort()
         for (const f of files) {
-          allContent.push(fs.readFileSync(path.join(topicsDir, f), 'utf-8'))
+          targets.push({ category: f.replace(/\.md$/, ''), filePath: path.join(topicsDir, f) })
         }
       }
     }
-    
-    const combined = allContent.join('\n\n---\n\n')
-    console.log('[memory-recall] Done, total chars:', combined.length)
-    return { content: combined, category: category || 'all', count: allContent.length }
+
+    const maxLimit = (typeof limit === 'number' && limit > 0) ? limit : 20
+    const kw = (typeof keyword === 'string' && keyword.trim()) ? keyword.trim().toLowerCase() : ''
+
+    // ===== Index mode: return per-category summary (count + latest entry) =====
+    if (mode === 'index') {
+      const index: Array<{ category: string; count: number; latestDate: string; latestTitle: string }> = []
+      for (const t of targets) {
+        const raw = fs.readFileSync(t.filePath, 'utf-8')
+        const entries = splitMemoryEntries(raw)
+        if (entries.length === 0) continue
+        // latest = last appended entry (appendFileSync appends to end)
+        const latest = entries[entries.length - 1]
+        index.push({
+          category: t.category,
+          count: entries.length,
+          latestDate: latest.date,
+          latestTitle: entryTitle(latest),
+        })
+      }
+      return { mode: 'index', categories: index, totalCategories: index.length }
+    }
+
+    // ===== Full mode: return structured entries (optionally filtered by keyword) =====
+    const allEntries: Array<{ category: string; date: string; heading: string; content: string }> = []
+    let truncated = false
+    for (const t of targets) {
+      const raw = fs.readFileSync(t.filePath, 'utf-8')
+      let entries = splitMemoryEntries(raw)
+      if (kw) {
+        entries = entries.filter(e => e.content.toLowerCase().includes(kw) || e.heading.toLowerCase().includes(kw))
+      }
+      // Apply per-category limit
+      if (entries.length > maxLimit) {
+        entries = entries.slice(0, maxLimit)
+        truncated = true
+      }
+      for (const e of entries) {
+        allEntries.push({ category: t.category, date: e.date, heading: e.heading, content: e.content })
+      }
+    }
+
+    console.log('[memory-recall] Done, entries:', allEntries.length, 'truncated:', truncated)
+    return { mode: 'full', entries: allEntries, total: allEntries.length, truncated }
   } catch (e: any) {
     console.log('[memory-recall] Error:', e.message)
     return { error: e.message }

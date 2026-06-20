@@ -185,7 +185,18 @@ declare global {
       listDrives: () => Promise<{ platform?: string; drives?: Array<{ drive: string; label: string; used: string }>; error?: string }>
       // Memory system
       memorySave: (category: string, content: string) => Promise<{ success?: boolean; category?: string; file?: string; message?: string; error?: string }>
-      memoryRecall: (category?: string) => Promise<{ content?: string; category?: string; count?: number; error?: string }>
+      memoryRecall: (category?: string, keyword?: string, limit?: number, mode?: 'index' | 'full') => Promise<{
+        mode?: 'index' | 'full'
+        // index mode
+        categories?: Array<{ category: string; count: number; latestDate: string; latestTitle: string }>
+        totalCategories?: number
+        // full mode
+        entries?: Array<{ category: string; date: string; heading: string; content: string }>
+        total?: number
+        truncated?: boolean
+        // error
+        error?: string
+      }>
       memoryDelete: (category: string, search: string) => Promise<{ success?: boolean; category?: string; file?: string; message?: string; error?: string; searchPreview?: string }>
     }
   }
