@@ -282,13 +282,82 @@ const TOOL_DEFS = [
       name: 'file_show',
       description:
         '在文件资源管理器中定位并高亮显示文件。' +
-        '当用户要求“在文件夹中显示”、“打开文件所在位置”、“定位文件”时使用此工具。',
+        '当用户要求"在文件夹中显示"、"打开文件所在位置"、"定位文件"时使用此工具。',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: '要定位显示的文件完整路径' },
         },
         required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'save_memory',
+      description:
+        '保存一条用户记忆到 Markdown 记忆文件中。' +
+        '当用户要求"记住"、"以后记住"、"别忘了"等时使用此工具。' +
+        '分类说明：profile（用户基本信息/身份/职业/公司），work（工作相关内容），preferences（偏好/习惯），' +
+        'notes（通用备忘）。' +
+        '\n\n⚠️ 内容格式要求：必须对用户的信息进行总结提炼，用结构化的 Markdown 列表格式输出，不要记录原始对话。' +
+        '例如用户说"我是做跨境电商的，主要做亚马逊和Shopee"，应输出：' +
+        '\n```' +
+        '\n📋 职业档案' +
+        '\n- 岗位：跨境电商运营' +
+        '\n- 平台：亚马逊、Shopee' +
+        '\n```' +
+        '这样后续读取时才能清晰呈现。',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: '记忆分类：profile、work、preferences、notes 或自定义分类名',
+            enum: ['profile', 'work', 'preferences', 'notes'],
+          },
+          content: { type: 'string', description: '总结提炼后的结构化 Markdown 记忆内容，使用列表格式，不记录原始对话' },
+        },
+        required: ['category', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'recall_memory',
+      description:
+        '回读之前保存的用户记忆。' +
+        '当用户要求"我之前说过什么"、"回顾记忆"、"帮我查一下记忆"时使用此工具。' +
+        '不传 category 则读取所有记忆。',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description: '可选，读取指定分类的记忆。不传则读取全部',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'delete_memory',
+      description:
+        '删除用户之前保存的某条记忆。' +
+        '当用户要求"忘掉"、"删除记忆"、"不需要记住xxx了"时使用此工具。' +
+        '需要指定分类和要删除的内容关键词。',
+      parameters: {
+        type: 'object',
+        properties: {
+          category: { type: 'string', description: '记忆所属分类' },
+          search: { type: 'string', description: '要删除的记忆关键词，用于在文件中定位' },
+        },
+        required: ['category', 'search'],
       },
     },
   },
@@ -422,6 +491,17 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const city = await detectCity()
 
+  // Load user memories
+  let memoryContent = ''
+  try {
+    if (window.electronAPI?.memoryRecall) {
+      const result = await window.electronAPI.memoryRecall()
+      if (result?.content && result.content.trim()) {
+        memoryContent = '\n\n---\n\n## 用户记忆（你之前记住的关于用户的信息，请在回答时参考）\n\n' + result.content
+      }
+    }
+  } catch { /* ignore memory loading errors */ }
+
   return (
     '你是一个强大的AI助手，运行在桌面应用中，可以直接操作用户的电脑。' +
     (modelName ? `\n\n你是由 ${providerName || 'AI服务商'} 提供的 **${modelName}** 模型。当用户询问"你是什么模型"、"用的什么大模型"等问题时，直接回答你正在使用的模型名称。` : '') +
@@ -443,7 +523,10 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n- file_mkdir：创建新文件夹（用户要求新建文件夹/目录时使用）' +
     '\n- file_info：获取文件详细信息（大小、创建/修改时间、类型，用户要求查看文件属性时使用）' +
     '\n- file_open：用系统默认程序打开文件（用户要求打开文件时使用）' +
-    '\n- file_show：在资源管理器中定位显示文件（用户要求“在文件夹中显示”、“打开所在位置”时使用）' +
+    '\n- file_show：在资源管理器中定位显示文件（用户要求"在文件夹中显示"、"打开所在位置"时使用）' +
+    '\n- save_memory：保存用户记忆（用户要求记住某事时使用，分类：profile/个人信息，work/工作，preferences/偏好，notes/备忘）' +
+    '\n- recall_memory：回读之前的记忆（用户问"我之前说过什么"时使用）' +
+    '\n- delete_memory：删除某条记忆（用户要求"忘掉"时使用）' +
     '\n- navigate_to_page：导航到应用内的指定页面' +
     '\n- query_deepseek_usage：查询 DeepSeek 账户余额、Token 用量、费用数据（用户问 DeepSeek 余额/用量/费用时优先使用此工具直接回答，不要让用户自己去查看）' +
     '\n\n使用策略：' +
@@ -458,8 +541,11 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n3.6 用户要求查看文件属性/信息 → 用 file_info' +
     '\n3.7 用户要求打开文件 → 用 file_open（系统默认程序打开）' +
     '\n3.8 用户要求查看文件位置 → 用 file_show（在资源管理器中高亮显示）' +
-    '\n4. 用户问 DeepSeek 余额/用量/Token/费用 → 只需调用 query_deepseek_usage 工具（会自动跳转到 dashboard），然后基于返回的数据用自然语言输出完整回答（余额、各模型Token、每日费用明细）' +
-    '\n5. 在回答中自然引用信息来源（如"据XX网站消息……"），直接融入正文流中。**禁止用 > 块引用或单独的来源列表格式**' +
+    '\n4. 用户要求记住/保存信息 → 用 save_memory。\n  ⚠️ 关键：保存前必须先总结提炼用户信息，用结构化 Markdown 列表格式（如"- 岗位：xxx"、"- 擅长：xxx"），不要照搬用户原话。\n  分类选择：个人信息/身份/职业→profile，工作内容/项目→work，偏好/习惯→preferences，零散备忘→notes。保存后简要确认即可' +
+    '\n4.1 用户要求回顾记忆/问之前说过什么 → 用 recall_memory' +
+    '\n4.2 用户要求忘掉/删除某条记忆 → 用 delete_memory' +
+    '\n5. 用户问 DeepSeek 余额/用量/Token/费用 → 只需调用 query_deepseek_usage 工具（会自动跳转到 dashboard），然后基于返回的数据用自然语言输出完整回答（余额、各模型Token、每日费用明细）' +
+    '\n6. 在回答中自然引用信息来源（如"据XX网站消息……"），直接融入正文流中。**禁止用 > 块引用或单独的来源列表格式**' +
     '\n\n行为规范：' +
     '\n- ⚠️ 重要：当需要同时使用多个工具时，先连续调用所有工具（不要中间输出文字），全部工具返回结果后再一次性输出完整回答。否则工具调用前的文字会被撤销' +
     '\n- 调用工具时直接调用，不要先输出「我来查一下」「让我搜索」之类的预备文字' +
@@ -483,7 +569,8 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n- 更不要把用户原本要问另一个 AI 的问题自己也回答一遍——你只做优化，不做执行' +
     '\n\n重要：你已经知道当前日期和用户所在城市，不要再询问用户这些信息。' +
     '\n用户的桌面路径通常是 C:\\Users\\<用户名>\\Desktop，用户文档路径通常是 C:\\Users\\<用户名>\\Documents。' +
-    '\n\n请用中文回复。'
+    '\n\n请用中文回复。' +
+    memoryContent
   )
 }
 
@@ -815,6 +902,59 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
         }
       }
       return JSON.stringify({ error: 'file_show 不可用', path: showPath })
+    }
+
+    case 'save_memory': {
+      const category = args.category
+      const content = args.content
+      if (!category || typeof category !== 'string') {
+        return JSON.stringify({ error: 'save_memory 缺少 category 参数' })
+      }
+      if (!content || typeof content !== 'string') {
+        return JSON.stringify({ error: 'save_memory 缺少 content 参数' })
+      }
+      if (window.electronAPI?.memorySave) {
+        try {
+          const result = await window.electronAPI.memorySave(category, content)
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `保存记忆失败: ${e.message}` })
+        }
+      }
+      return JSON.stringify({ error: 'save_memory 不可用' })
+    }
+
+    case 'recall_memory': {
+      const category = args.category
+      if (window.electronAPI?.memoryRecall) {
+        try {
+          const result = await window.electronAPI.memoryRecall(typeof category === 'string' ? category : undefined)
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `回读记忆失败: ${e.message}` })
+        }
+      }
+      return JSON.stringify({ error: 'recall_memory 不可用' })
+    }
+
+    case 'delete_memory': {
+      const category = args.category
+      const search = args.search
+      if (!category || typeof category !== 'string') {
+        return JSON.stringify({ error: 'delete_memory 缺少 category 参数' })
+      }
+      if (!search || typeof search !== 'string') {
+        return JSON.stringify({ error: 'delete_memory 缺少 search 参数' })
+      }
+      if (window.electronAPI?.memoryDelete) {
+        try {
+          const result = await window.electronAPI.memoryDelete(category, search)
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `删除记忆失败: ${e.message}` })
+        }
+      }
+      return JSON.stringify({ error: 'delete_memory 不可用' })
     }
 
     case 'navigate_to_page': {

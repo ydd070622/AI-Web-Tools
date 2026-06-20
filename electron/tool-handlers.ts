@@ -3,7 +3,7 @@
  * Ports & Adapters: tools are executed here, agent loop runs in renderer.
  */
 
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -498,5 +498,149 @@ ipcMain.handle('file-edit', async (_ev, filePath: string, search: string, replac
   } catch (e: any) {
     console.log('[file-edit] Error:', e.message)
     return { error: e.message, path: filePath }
+  }
+})
+
+// ===== Memory System — Markdown-based persistent user memories =====
+function getMemoriesDir(): string {
+  if (app.isPackaged) {
+    return path.join(path.dirname(app.getPath('exe')), 'memories')
+  }
+  return path.join(app.getPath('documents'), 'LingWorks', 'memories')
+}
+
+function ensureMemoriesDir(): void {
+  if (!fs.existsSync(getMemoriesDir())) {
+    fs.mkdirSync(getMemoriesDir(), { recursive: true })
+  }
+  const topicsDir = path.join(getMemoriesDir(), 'topics')
+  if (!fs.existsSync(topicsDir)) {
+    fs.mkdirSync(topicsDir, { recursive: true })
+  }
+  const profilePath = path.join(getMemoriesDir(), 'profile.md')
+  if (!fs.existsSync(profilePath)) {
+    fs.writeFileSync(profilePath, '# 用户档案\n\n_你的基本信息会以下面结构化的格式记录在这里，智能体会在每次对话时读取。_\n\n', 'utf-8')
+  }
+}
+
+// ===== IPC Handler: memory_save =====
+ipcMain.handle('memory-save', async (_ev, category: string, content: string) => {
+  try {
+    console.log('[memory-save] Category:', category, 'content:', content.slice(0, 60))
+    ensureMemoriesDir()
+    
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    
+    let filePath: string
+    if (category === 'profile') {
+      filePath = path.join(getMemoriesDir(), 'profile.md')
+    } else {
+      filePath = path.join(getMemoriesDir(), 'topics', `${category}.md`)
+    }
+    
+    const entry = `\n### ${dateStr} ${timeStr}\n${content}\n`
+    
+    if (fs.existsSync(filePath)) {
+      fs.appendFileSync(filePath, entry, 'utf-8')
+    } else {
+      fs.writeFileSync(filePath, `# ${category}\n${entry}`, 'utf-8')
+    }
+    
+    console.log('[memory-save] Done:', filePath)
+    return { success: true, category, file: path.basename(filePath), message: `已保存到 ${category}` }
+  } catch (e: any) {
+    console.log('[memory-save] Error:', e.message)
+    return { error: e.message, category }
+  }
+})
+
+// ===== IPC Handler: memory_recall =====
+ipcMain.handle('memory-recall', async (_ev, category?: string) => {
+  try {
+    console.log('[memory-recall] Category:', category || 'all')
+    ensureMemoriesDir()
+    
+    const allContent: string[] = []
+    
+    if (category) {
+      const filePath = category === 'profile'
+        ? path.join(getMemoriesDir(), 'profile.md')
+        : path.join(getMemoriesDir(), 'topics', `${category}.md`)
+      if (fs.existsSync(filePath)) {
+        allContent.push(fs.readFileSync(filePath, 'utf-8'))
+      }
+    } else {
+      const profilePath = path.join(getMemoriesDir(), 'profile.md')
+      if (fs.existsSync(profilePath)) {
+        allContent.push(fs.readFileSync(profilePath, 'utf-8'))
+      }
+      const topicsDir = path.join(getMemoriesDir(), 'topics')
+      if (fs.existsSync(topicsDir)) {
+        const files = fs.readdirSync(topicsDir).filter(f => f.endsWith('.md')).sort()
+        for (const f of files) {
+          allContent.push(fs.readFileSync(path.join(topicsDir, f), 'utf-8'))
+        }
+      }
+    }
+    
+    const combined = allContent.join('\n\n---\n\n')
+    console.log('[memory-recall] Done, total chars:', combined.length)
+    return { content: combined, category: category || 'all', count: allContent.length }
+  } catch (e: any) {
+    console.log('[memory-recall] Error:', e.message)
+    return { error: e.message }
+  }
+})
+
+// ===== IPC Handler: memory_delete =====
+ipcMain.handle('memory-delete', async (_ev, category: string, search: string) => {
+  try {
+    console.log('[memory-delete] Category:', category, 'search:', search.slice(0, 60))
+    ensureMemoriesDir()
+    
+    const filePath = category === 'profile'
+      ? path.join(getMemoriesDir(), 'profile.md')
+      : path.join(getMemoriesDir(), 'topics', `${category}.md`)
+    
+    if (!fs.existsSync(filePath)) {
+      return { error: `记忆分类 ${category} 不存在` }
+    }
+    
+    let content = fs.readFileSync(filePath, 'utf-8')
+    if (!content.includes(search)) {
+      return { error: `在 ${category} 中找不到匹配内容`, searchPreview: search.slice(0, 100) }
+    }
+    
+    const lines = content.split('\n')
+    const searchIdx = lines.findIndex(l => l.includes(search))
+    if (searchIdx >= 0) {
+      let start = searchIdx
+      while (start > 0 && !lines[start].startsWith('### ') && lines[start].trim() !== '') {
+        start--
+      }
+      if (start > 0 && lines[start].startsWith('### ')) {
+        // Include the heading
+      } else if (start > 0 && lines[start].trim() === '') {
+        start++
+      }
+      let end = searchIdx + 1
+      while (end < lines.length && !lines[end].startsWith('### ') && !lines[end].startsWith('# ')) {
+        end++
+      }
+      while (end > start && lines[end - 1].trim() === '') {
+        end--
+      }
+      lines.splice(start, end - start)
+      content = lines.join('\n').replace(/\n{3,}/g, '\n\n')
+    }
+    
+    fs.writeFileSync(filePath, content, 'utf-8')
+    console.log('[memory-delete] Done:', filePath)
+    return { success: true, category, file: path.basename(filePath), message: `已从 ${category} 中删除匹配记忆` }
+  } catch (e: any) {
+    console.log('[memory-delete] Error:', e.message)
+    return { error: e.message, category }
   }
 })

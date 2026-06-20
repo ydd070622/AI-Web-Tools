@@ -117,6 +117,11 @@ window.electronAPI = {
   fileOpen: (path: string) => ipcRenderer.invoke('file-open', path),
   fileShow: (path: string) => ipcRenderer.invoke('file-show', path),
 
+  // Memory system
+  memorySave: (category: string, content: string) => ipcRenderer.invoke('memory-save', category, content),
+  memoryRecall: (category?: string) => ipcRenderer.invoke('memory-recall', category),
+  memoryDelete: (category: string, search: string) => ipcRenderer.invoke('memory-delete', category, search),
+
   // Update
   startUpdateDownload: (downloadUrl: string, version: string) => ipcRenderer.invoke('update-start-download', downloadUrl, version),
   installUpdate: () => ipcRenderer.invoke('update-install'),

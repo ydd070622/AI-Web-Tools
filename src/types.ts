@@ -182,6 +182,10 @@ declare global {
       fileInfo: (path: string) => Promise<{ path?: string; name?: string; ext?: string; type?: string; isDirectory?: boolean; size?: number; sizeFormatted?: string; created?: string; modified?: string; accessed?: string; error?: string }>
       fileOpen: (path: string) => Promise<{ path?: string; message?: string; error?: string }>
       fileShow: (path: string) => Promise<{ path?: string; message?: string; error?: string }>
+      // Memory system
+      memorySave: (category: string, content: string) => Promise<{ success?: boolean; category?: string; file?: string; message?: string; error?: string }>
+      memoryRecall: (category?: string) => Promise<{ content?: string; category?: string; count?: number; error?: string }>
+      memoryDelete: (category: string, search: string) => Promise<{ success?: boolean; category?: string; file?: string; message?: string; error?: string; searchPreview?: string }>
     }
   }
 }
