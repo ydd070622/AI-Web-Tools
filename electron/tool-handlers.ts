@@ -451,6 +451,29 @@ ipcMain.handle('file-open', async (_ev, filePath: string) => {
   }
 })
 
+// ===== IPC Handler: list_drives =====
+ipcMain.handle('list-drives', async () => {
+  try {
+    const drives: Array<{ drive: string; label: string; used: string }> = []
+    if (process.platform === 'win32') {
+      for (let i = 65; i <= 90; i++) {
+        const letter = String.fromCharCode(i)
+        const root = `${letter}:\\`
+        try {
+          if (fs.existsSync(root)) {
+            drives.push({ drive: root, label: `本地磁盘 (${letter}:)`, used: '' })
+          }
+        } catch { /* skip permission errors */ }
+      }
+      return { platform: 'win32', drives }
+    }
+    // Linux/Mac: root only
+    return { platform: process.platform, drives: [{ drive: '/', label: '根目录 /', used: '' }] }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+})
+
 // ===== IPC Handler: file_show =====
 ipcMain.handle('file-show', async (_ev, filePath: string) => {
   try {

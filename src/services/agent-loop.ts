@@ -58,6 +58,22 @@ const TOOL_DEFS = [
   {
     type: 'function' as const,
     function: {
+      name: 'list_drives',
+      description:
+        '列出电脑上所有可用的磁盘/驱动器（如 C:、D:、E:）。' +
+        '在你需要搜索文件或浏览文件夹时，先调用此工具获取所有可用驱动器，' +
+        '然后在每个驱动器上用 file_search 或 file_list 查找目标。' +
+        '当用户问"在我的电脑上找..."而你不知道从哪里搜起时，先调用此工具。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'web_search',
       description:
         '搜索互联网获取最新信息。返回相关网页的标题、摘要和URL。' +
@@ -574,7 +590,7 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
   )
 }
 
-const MAX_ROUNDS = 5
+const MAX_ROUNDS = 10
 
 // ===== Parse SSE stream with tool_call delta support =====
 interface StreamChunk {
@@ -638,6 +654,18 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
   }
 
   switch (name) {
+    case 'list_drives': {
+      if (window.electronAPI?.listDrives) {
+        try {
+          const result = await window.electronAPI.listDrives()
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `列出驱动器失败: ${e.message}` })
+        }
+      }
+      return JSON.stringify({ error: 'list_drives 不可用' })
+    }
+
     case 'web_search': {
       const query = args.query
       if (!query || typeof query !== 'string') {
@@ -1186,6 +1214,8 @@ export async function* agentChat(
 
   yield { type: 'thinking' }
 
+  let hasFinalText = false
+
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const endpoint = getProviderEndpoint(model.providerId)
     if (!endpoint) {
@@ -1347,6 +1377,7 @@ export async function* agentChat(
     }
 
     // No tool calls → text was streamed in real-time, just finalize
+    hasFinalText = true
     yield { type: 'text_end' }
 
     if (!fullContent) {
@@ -1355,6 +1386,29 @@ export async function* agentChat(
     }
 
     break
+  }
+
+ if (!hasFinalText) {
+    // Collect tool summary from history for the fallback message
+    const toolSummary = history
+      .filter(h => h.role === 'tool')
+      .slice(-3)
+      .map(h => {
+        try {
+          const parsed = JSON.parse(h.content || '{}')
+          if (parsed.error) return `⚠️ ${parsed.error}`
+          if (parsed.drives) return `发现 ${parsed.drives.length} 个驱动器`
+          if (parsed.count !== undefined) return `找到 ${parsed.count} 个匹配结果`
+          if (parsed.items) return `目录中有 ${parsed.count || parsed.items.length} 项`
+          if (parsed.message) return parsed.message
+          return ''
+        } catch { return '' }
+      })
+      .filter(Boolean)
+      .join('；')
+    const fallback = toolSummary ? `\n（已执行搜索${toolSummary ? '：' + toolSummary : ''}，但模型未生成最终回复。这可能是因为操作步骤较多，请尝试更具体的描述，如"帮我打开D盘里的摄影文件夹"）` : '\n（智能体正在处理，请稍后再问一次）'
+    yield { type: 'text_chunk', content: fallback }
+    yield { type: 'text_end' }
   }
 
   yield { type: 'done' }

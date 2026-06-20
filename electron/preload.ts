@@ -116,6 +116,7 @@ window.electronAPI = {
   fileInfo: (path: string) => ipcRenderer.invoke('file-info', path),
   fileOpen: (path: string) => ipcRenderer.invoke('file-open', path),
   fileShow: (path: string) => ipcRenderer.invoke('file-show', path),
+  listDrives: () => ipcRenderer.invoke('list-drives'),
 
   // Memory system
   memorySave: (category: string, content: string) => ipcRenderer.invoke('memory-save', category, content),
