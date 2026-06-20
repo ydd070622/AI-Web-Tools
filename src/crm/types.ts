@@ -1,3 +1,12 @@
+// 回款计划中的单笔收款记录
+export interface Payment {
+  id: string        // 'p' + Date.now() + 随机后缀
+  label: string     // 阶段名：定金/进度款/尾款/自定义（如设计费）
+  amount: number    // 金额（元）
+  paid: boolean     // 是否已收款
+  date: string      // 收款日期（YYYY-MM-DD），未收为空串
+}
+
 export interface Note {
   id: string; title: string; publishDate: string; status: 'published' | 'draft'
   views: number; likes: number; comments: number
@@ -14,6 +23,10 @@ export interface Customer {
   dealAmount: number | null; notes: string
   createdAt: string; updatedAt: string
   projectId?: string
+  // —— 合同生命周期 + 回款管理（仅 stage==='closed' 即成交后才有意义）——
+  contractStatus?: 'signed' | 'progress' | 'done'   // 合同状态，默认 'signed'
+  paymentPlan?: Payment[]                            // 回款计划，默认 []
+  signDate?: string                                  // 签约日期（YYYY-MM-DD），独立于 updatedAt
 }
 
 export interface CRMData { accounts: string[]; notes: Note[]; customers: Customer[] }

@@ -27,17 +27,27 @@ export default function CRMPanel() {
 
   useEffect(() => {
     const load = async () => {
+      // 数据迁移：给老合同补新字段默认值（无感升级）
+      const migrate = (raw: CRMData): CRMData => ({
+        ...raw,
+        customers: raw.customers.map(c => c.stage === 'closed' ? {
+          ...c,
+          contractStatus: c.contractStatus || 'signed',
+          paymentPlan: c.paymentPlan?.length ? c.paymentPlan : [],
+          signDate: c.signDate || '',
+        } : c),
+      })
       if (window.electronAPI) {
         const saved = await window.electronAPI.getStore(STORAGE_KEY)
         if (saved && typeof saved === 'object' && Array.isArray(saved.customers)) {
-          setData(saved as CRMData)
+          setData(migrate(saved as CRMData))
         }
       } else {
         const raw = localStorage.getItem(STORAGE_KEY)
         if (raw) {
           try {
             const parsed = JSON.parse(raw)
-            if (parsed && Array.isArray(parsed.customers)) setData(parsed)
+            if (parsed && Array.isArray(parsed.customers)) setData(migrate(parsed))
           } catch { /* use default */ }
         }
       }
@@ -79,6 +89,9 @@ export default function CRMPanel() {
       style: cust.style || '', followUpDate: cust.followUpDate || '', followUpNote: cust.followUpNote || '',
       dealAmount: cust.dealAmount ?? null, notes: cust.notes || '', createdAt: ts, updatedAt: ts,
       projectId: cust.projectId,
+      contractStatus: cust.contractStatus,
+      paymentPlan: cust.paymentPlan,
+      signDate: cust.signDate,
     }
     persist({ ...data, customers: [...data.customers, c] })
   }, [data, ts, persist])

@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import type { SharedProps } from './types'
 
-export default function DashboardPage({ data, todayCount }: SharedProps) {
+export default function DashboardPage({ data, todayCount, closedCusts }: SharedProps) {
   const total = data.customers.filter(c => c.stage !== 'closed').length
   const closed = data.customers.filter(c => c.stage === 'closed').length
-  const revenue = data.customers.reduce((s, c) => s + (c.dealAmount || 0), 0)
+  const revenue = closedCusts.reduce((s, c) => s + (c.dealAmount || 0), 0)
+  const paid = closedCusts.reduce((s, c) => s + (c.paymentPlan || []).filter(p => p.paid).reduce((ss, p) => ss + p.amount, 0), 0)
 
   const funnel = [
     { label: '留资/咨询', count: total, color: '#3b82f6' },
@@ -28,7 +29,8 @@ export default function DashboardPage({ data, todayCount }: SharedProps) {
         <div className="crm-kpi-card accent"><span className="crm-kpi-label">总客户</span><span className="crm-kpi-value">{total}</span></div>
         <div className="crm-kpi-card warn"><span className="crm-kpi-label">今日待跟进</span><span className="crm-kpi-value">{todayCount}</span></div>
         <div className="crm-kpi-card success"><span className="crm-kpi-label">已成交</span><span className="crm-kpi-value">{closed}</span></div>
-        <div className="crm-kpi-card success"><span className="crm-kpi-label">总成交额</span><span className="crm-kpi-value" style={{ fontSize: 22 }}>¥{(revenue / 10000).toFixed(1)}万</span></div>
+        <div className="crm-kpi-card success"><span className="crm-kpi-label">总成交额</span><span className="crm-kpi-value" style={{ fontSize: 18 }}>¥{(revenue / 10000).toFixed(1)}<span style={{ fontSize: 12, fontWeight: 500 }}>万</span></span></div>
+        <div className="crm-kpi-card success"><span className="crm-kpi-label">已回款</span><span className="crm-kpi-value" style={{ fontSize: 18 }}>¥{(paid / 10000).toFixed(1)}<span style={{ fontSize: 12, fontWeight: 500 }}>万</span></span></div>
       </div>
 
       <div className="crm-dash-grid">

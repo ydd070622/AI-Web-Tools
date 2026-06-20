@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Customer } from './types'
-import { STAGES } from './constants'
+import { STAGES, defaultPaymentPlan } from './constants'
 
 export default function ContractModal({ customers, onSaveNew, onUpdateExisting, onClose }: {
   customers: Customer[]
@@ -84,14 +84,19 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
           <button className="crm-btn-ghost" onClick={onClose}>取消</button>
           <button className="crm-btn-primary" onClick={() => {
             if (!form.name.trim() || !form.dealAmount) return
+            const dealAmount = parseInt(form.dealAmount) || 0
+            const today = new Date().toISOString().split('T')[0]
             if (form.linkMode === 'existing' && form.linkedId) {
               // 更新已有客户，不创建重复记录
               onUpdateExisting(form.linkedId, {
                 stage: 'closed',
-                dealAmount: parseInt(form.dealAmount) || 0,
+                dealAmount,
                 projectId: form.projectId || undefined,
                 style: form.style || selectedCust?.style || '',
                 notes: form.notes,
+                contractStatus: 'signed',
+                signDate: today,
+                paymentPlan: defaultPaymentPlan(dealAmount),
               })
             } else {
               // 新建客户 + 合同
@@ -102,8 +107,11 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
                 source: selectedCust?.source || 'other', sourceNoteId: selectedCust?.sourceNoteId || null,
                 stage: 'closed',
                 style: form.style || selectedCust?.style || '',
-                dealAmount: parseInt(form.dealAmount) || 0, notes: form.notes,
+                dealAmount, notes: form.notes,
                 followUpDate: '', followUpNote: '', projectId: form.projectId || undefined,
+                contractStatus: 'signed',
+                signDate: today,
+                paymentPlan: defaultPaymentPlan(dealAmount),
               })
             }
           }}>保存合同</button>

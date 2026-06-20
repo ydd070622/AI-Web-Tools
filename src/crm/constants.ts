@@ -1,4 +1,5 @@
 import { LayoutDashboard, Users, Filter, FileText, BarChart3, FileEdit } from 'lucide-react'
+import type { Payment } from './types'
 
 export const STAGES = [
   { id: 'lead', label: '待引流', icon: '📥', dotColor: '#3b82f6', cls: 'stage-lead' },
@@ -13,6 +14,25 @@ export const SOURCES = [
   { id: 'referral', label: '老客户介绍', icon: '👥' },
   { id: 'other', label: '其他', icon: '📌' },
 ] as const
+
+// 合同生命周期状态（仅成交后 stage==='closed' 时有意义），自由跳转不强制顺序
+export const CONTRACT_STATUS = [
+  { id: 'signed',   label: '已签约', icon: '📋', color: 'blue' },
+  { id: 'progress', label: '施工中', icon: '🔨', color: 'yellow' },
+  { id: 'done',     label: '已完工', icon: '✅', color: 'green' },
+] as const
+
+// 标准回款分期模板：定金 30% + 进度款 40% + 尾款 30%（尾款取整补差，保证三期之和=总额）
+export function defaultPaymentPlan(totalAmount: number): Payment[] {
+  const deposit = Math.round(totalAmount * 0.3)
+  const progress = Math.round(totalAmount * 0.4)
+  const final = totalAmount - deposit - progress
+  return [
+    { id: 'p_dep_' + Date.now(), label: '定金',   amount: deposit,  paid: false, date: '' },
+    { id: 'p_pro_' + Date.now(), label: '进度款', amount: progress, paid: false, date: '' },
+    { id: 'p_fin_' + Date.now(), label: '尾款',   amount: final,    paid: false, date: '' },
+  ]
+}
 
 export const AVATAR_GRADS: [string, string][] = [
   ['#6366f1', '#818cf8'], ['#8b5cf6', '#a78bfa'], ['#ec4899', '#f472b6'],

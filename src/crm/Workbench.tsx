@@ -5,6 +5,7 @@ import { avatarGrad, fuDisplay, fmtDate } from './helpers'
 export default function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, leadCount, setEditingCustomer, setTab }: SharedProps) {
   const total = data.customers.filter(c => c.stage !== 'closed').length
   const revenue = closedCusts.reduce((s, c) => s + (c.dealAmount || 0), 0)
+  const paid = closedCusts.reduce((s, c) => s + (c.paymentPlan || []).filter(p => p.paid).reduce((ss, p) => ss + p.amount, 0), 0)
   const thisMonth = new Date().toISOString().slice(0, 7)
   const newMonth = data.customers.filter(c => c.stage !== 'closed' && c.createdAt.startsWith(thisMonth)).length
   const allFollowUps = followUps
@@ -31,7 +32,7 @@ export default function Workbench({ data, followUps, todayCount, overdueCount, c
         <div className="crm-kpi-card success">
           <span className="crm-kpi-label">总成交额</span>
           <span className="crm-kpi-value" style={{ fontSize: 22 }}>¥{(revenue / 10000).toFixed(1)}<span style={{ fontSize: 13, fontWeight: 500 }}>万</span></span>
-          <span className="crm-kpi-sub">均单 ¥{closedCusts.length > 0 ? Math.round(revenue / closedCusts.length / 1000) / 10 : 0}万</span>
+          <span className="crm-kpi-sub">回款 ¥{(paid / 10000).toFixed(1)}万 · 均单 ¥{closedCusts.length > 0 ? Math.round(revenue / closedCusts.length / 1000) / 10 : 0}万</span>
         </div>
       </div>
 

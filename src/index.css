@@ -2992,3 +2992,134 @@ textarea.input-base {
 /* Light theme overrides */
 .theme-light .crm-account-badge { background: #eef2ff; color: #4338ca; }
 .theme-light .crm-account-row { background: #f5f6fa; }
+
+/* ===== CRM Contract Lifecycle Badges ===== */
+.crm-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500;
+  white-space: nowrap;
+}
+.crm-badge-blue { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.crm-badge-yellow { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.crm-badge-green { background: rgba(34,197,94,0.12); color: #4ade80; }
+.crm-badge-success { background: rgba(34,197,94,0.12); color: #4ade80; }
+.crm-badge-warn { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.crm-badge-danger { background: rgba(239,68,68,0.12); color: #f87171; }
+.crm-badge-purple { background: rgba(139,92,246,0.12); color: #a78bfa; }
+
+/* ===== CRM Payment Progress Bar ===== */
+.crm-pay-cell { min-width: 150px; }
+.crm-pay-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.crm-pay-bar {
+  flex: 1; height: 5px; background: var(--bg-tertiary, #232b35);
+  border-radius: 3px; overflow: hidden;
+}
+.crm-pay-fill {
+  height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--success, #22c55e), #16a34a);
+  transition: width 0.3s;
+}
+.crm-pay-fill.partial { background: linear-gradient(90deg, var(--warning, #f59e0b), #d97706); }
+.crm-pay-fill.none { background: var(--danger, #ef4444); }
+.crm-pay-text { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.crm-pay-text.warn { color: var(--danger, #ef4444); font-weight: 500; }
+
+/* ===== CRM Modal LG (wide for contract detail) ===== */
+.crm-modal-lg { width: 600px; }
+
+/* ===== CRM Section Header ===== */
+.crm-section-title {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border-color);
+  display: flex; align-items: center; gap: 6px;
+}
+.crm-section-count {
+  background: var(--bg-tertiary, #232b35); color: var(--text-muted);
+  font-size: 11px; padding: 1px 7px; border-radius: 10px; font-weight: 400;
+}
+
+/* ===== CRM Status Pills ===== */
+.crm-status-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.crm-status-pill {
+  padding: 5px 12px; border-radius: 14px; font-size: 12px;
+  border: 1px solid var(--border-color); background: var(--bg-tertiary, #232b35);
+  cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+  color: var(--text-secondary);
+}
+.crm-status-pill:hover { border-color: var(--text-muted); }
+.crm-status-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.crm-status-pill.crm-pill-blue.active { background: #3b82f6; border-color: #3b82f6; }
+.crm-status-pill.crm-pill-yellow.active { background: #d97706; border-color: #d97706; }
+.crm-status-pill.crm-pill-green.active { background: #16a34a; border-color: #16a34a; }
+
+/* ===== CRM Payment Summary (4-col grid) ===== */
+.crm-pay-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  background: var(--bg-tertiary, #232b35); border-radius: 8px;
+  padding: 12px 10px; margin-bottom: 4px;
+}
+.crm-pay-summary-item { text-align: center; }
+.crm-pay-summary-label { font-size: 10px; color: var(--text-muted); margin-bottom: 2px; }
+.crm-pay-summary-value { font-size: 14px; font-weight: 600; }
+.crm-pay-summary-value.green { color: var(--success, #22c55e); }
+
+/* ===== CRM Payment Plan List ===== */
+.crm-plan-list { display: flex; flex-direction: column; gap: 6px; }
+.crm-plan-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary, #232b35);
+}
+.crm-plan-item.paid { border-left: 3px solid var(--success, #22c55e); }
+.crm-plan-item.unpaid { border-left: 3px solid var(--danger, #ef4444); }
+.crm-plan-item-body { flex: 1; }
+.crm-plan-item-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crm-plan-item-label { font-size: 12px; font-weight: 500; display: flex; align-items: center; }
+.crm-plan-item-amount { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.crm-plan-item-amount.paid { color: var(--success, #22c55e); }
+.crm-plan-item-amount.unpaid { color: var(--text-muted); }
+.crm-plan-item-meta { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.crm-plan-item-actions { display: flex; gap: 4px; align-items: center; }
+.crm-plan-add {
+  display: flex; gap: 6px; align-items: flex-end;
+  padding: 8px 10px; background: var(--bg-tertiary, #232b35);
+  border-radius: 6px; border: 1px dashed var(--border-color);
+}
+
+/* ===== CRM Small Buttons ===== */
+.crm-btn-ghost-xs {
+  padding: 3px 7px; font-size: 11px; border-radius: 4px;
+  border: 1px solid var(--border-color); background: transparent;
+  color: var(--text-secondary); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px;
+  transition: all 0.15s; font-family: inherit;
+}
+.crm-btn-ghost-xs:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.crm-btn-primary-sm { background: var(--accent); border-color: var(--accent); color: #fff; padding: 3px 10px; }
+.crm-btn-primary-sm:hover { opacity: 0.85; }
+.crm-btn-danger-sm { color: var(--danger, #ef4444); border-color: rgba(239,68,68,0.25); }
+.crm-btn-danger-sm:hover { background: rgba(239,68,68,0.1); }
+
+/* ===== CRM Small Form Input ===== */
+.crm-form-input.crm-form-input-sm {
+  padding: 4px 8px; font-size: 12px; border-radius: 4px;
+}
+
+/* ===== CRM KPI 5-col grid support ===== */
+.crm-kpi-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ===== Light theme overrides for new contract UI ===== */
+.theme-light .crm-badge-blue { background: #dbeafe; color: #1d4ed8; }
+.theme-light .crm-badge-yellow { background: #fef3c7; color: #92400e; }
+.theme-light .crm-badge-green, .theme-light .crm-badge-success { background: #d1fae5; color: #065f46; }
+.theme-light .crm-badge-warn { background: #fef3c7; color: #92400e; }
+.theme-light .crm-badge-danger { background: #fee2e2; color: #dc2626; }
+.theme-light .crm-badge-purple { background: #ede9fe; color: #6d28d9; }
+.theme-light .crm-plan-item { background: #f5f6fa; }
+.theme-light .crm-plan-add { background: #f5f6fa; }
+.theme-light .crm-pay-summary { background: #f5f6fa; }
+.theme-light .crm-pay-bar { background: #e5e7eb; }
