@@ -149,6 +149,7 @@ declare global {
       onDownloadFailed: (cb: (data: { id: string }) => void) => () => void
       cancelDownload: (id: string) => Promise<void>
       registerWebviewSession: (wcId: number) => Promise<boolean>
+      clearPartitionCookies: (partition: string) => Promise<boolean>
       shellOpenPath: (p: string) => Promise<void>
       shellShowItem: (p: string) => Promise<void>
       minimizeWindow: () => Promise<void>
@@ -159,6 +160,7 @@ declare global {
       onMaximizeChange: (cb: (isMax: boolean) => void) => () => void
       onNewTab: (cb: (data: { url: string; siteId: string }) => void) => () => void
       onPopupNavigate: (cb: (data: { url: string; hostWebContentsId?: number }) => void) => () => void
+      onXhsNewTab: (cb: (data: { url: string }) => void) => () => void
       dsLogin: () => Promise<string | null>
       registerShortcuts: (bindings: Record<string, string>) => Promise<void>
       onShortcutTrigger: (cb: (targetId: string) => void) => () => void

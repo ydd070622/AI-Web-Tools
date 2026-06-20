@@ -1,7 +1,7 @@
 /**
  * Electron Main Process — entry point, window creation, webview management
  */
-import { app, BrowserWindow, Menu, globalShortcut, shell } from 'electron'
+import { app, BrowserWindow, Menu, globalShortcut, shell, session, ipcMain } from 'electron'
 import * as path from 'path'
 
 // IPC modules
@@ -88,6 +88,18 @@ function createWindow() {
   // is guaranteed to be applied). Pre-registration removed to speed up startup.
   registerWebviewSessionIPC(mainWindow)
 
+  // Clear cookies/storage for a specific partition (used before login to avoid stale state)
+  ipcMain.handle('clear-partition-cookies', async (_e, partition: string) => {
+    try {
+      const sess = session.fromPartition(`persist:${partition}`)
+      await sess.clearStorageData({ storages: ['cookies', 'localstorage'] })
+      return true
+    } catch (err: any) {
+      console.error('[clear-partition-cookies]', err.message)
+      return false
+    }
+  })
+
   // Inject webview preload to spoof Chrome detection for Google sign-in
   const webviewPreload = path.join(__dirname, 'webview-preload.js')
   mainWindow.webContents.on('will-attach-webview', (_event, webPreferences) => {
@@ -161,10 +173,14 @@ app.on('web-contents-created', (_e, contents) => {
     if (type === 'window') {
       contents.on('will-navigate', (_ev, url) => {
         if (url.startsWith('http://') || url.startsWith('https://')) {
+          // Don't close XiaoHongShu login/OAuth popups — they need to complete the auth flow
+          const isXHSPopup = url.includes('xiaohongshu.com') || url.includes('xhscdn.com')
           const hostId = (contents as any).hostWebContents?.id
-          mainWindow?.webContents.send('popup-navigate', { url, hostWebContentsId: hostId })
-          const win = BrowserWindow.fromWebContents(contents)
-          if (win) win.close()
+          if (!isXHSPopup) {
+            mainWindow?.webContents.send('popup-navigate', { url, hostWebContentsId: hostId })
+            const win = BrowserWindow.fromWebContents(contents)
+            if (win) win.close()
+          }
         }
       })
     }
@@ -208,6 +224,11 @@ app.on('web-contents-created', (_e, contents) => {
   // Attach webview download handler
   attachWebviewDownloads(mainWindow)(contents)
 
+  // Ensure session accepts all cookies (fixes cross-domain auth cookie issues)
+  contents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(true)
+  })
+
   // User-Agent spoofing (match Chromium 130 on Windows)
   const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.44 Safari/537.36'
   contents.setUserAgent(chromeUA)
@@ -221,8 +242,20 @@ app.on('web-contents-created', (_e, contents) => {
     if (url === 'about:blank') {
       return { action: 'allow', overrideBrowserWindowOptions: { show: false } }
     }
+
+    // Allow popups for XiaoHongShu login/OAuth flows (QR scan, token exchange)
+    const sourceUrl = contents.getURL()
+    const isXHS = sourceUrl.includes('xiaohongshu.com') || sourceUrl.includes('xhscdn.com')
+    if (isXHS && url.startsWith('http')) {
+      // Cross-subdomain navigation (e.g. ad.xhs → business.xhs) → open as new tab
+      if (url.includes('xiaohongshu.com') && !url.includes(new URL(sourceUrl).hostname)) {
+        mainWindow?.webContents.send('xhs-new-tab', { url })
+        return { action: 'deny' }
+      }
+      return { action: 'allow' }
+    }
+
     if (url.startsWith('http://') || url.startsWith('https://')) {
-      const sourceUrl = contents.getURL()
       let siteId = ''
       if (sourceUrl.includes('runninghub.cn')) siteId = 'runninghub'
       else if (sourceUrl.includes('liblib.tv')) siteId = 'liblib'

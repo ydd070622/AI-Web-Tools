@@ -116,6 +116,17 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     setCtxPos(null)
   }, [activeView?.account.id, activeView?.url])
 
+  // Listen for cross-subdomain popup requests from main process (e.g. 聚光 → 专业号)
+  useEffect(() => {
+    const unsub = window.electronAPI?.onXhsNewTab((data) => {
+      const newId = `xhs-${++tabCounter}`
+      setTabs(prev => [...prev, { id: newId, url: data.url, title: '加载中...' }])
+      setActiveTabId(newId)
+      setShowGrid(false)
+    })
+    return () => { unsub?.() }
+  }, [])
+
   const saveStore = useCallback(async (list: AccountConfig[]) => {
     if (window.electronAPI) await window.electronAPI.setStore(STORE_KEY, list)
   }, [])
@@ -126,18 +137,50 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     const wv = document.createElement('webview') as unknown as WebviewElement
     wv.setAttribute('src', tabUrl)
     wv.setAttribute('partition', `persist:${accountId}`)
-    wv.setAttribute('disablewebsecurity', '')
     wv.setAttribute('allowpopups', '')
     Object.assign(wv.style, {
       width: '100%', height: '100%', border: 'none',
       position: 'absolute', top: '0', left: '0',
     })
 
+    // Redirect loop detection: track recent URLs to prevent login <-> dashboard infinite loops
+    let recentUrls: string[] = []
+
     wv.addEventListener('page-title-updated', (e: any) => {
       if (e.title) {
         setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title: e.title } : t))
       }
     })
+
+    // Intercept navigation to detect and break redirect loops
+    wv.addEventListener('will-navigate', ((e: any) => {
+      const url = e.url || ''
+      if (!url.startsWith('http')) return
+
+      // Track URL history for loop detection
+      recentUrls.push(url)
+      if (recentUrls.length > 6) recentUrls.shift()
+
+      // Detect login loop: same URL visited 3+ times in quick succession
+      const normalizedUrl = url.split('?')[0].split('#')[0]
+      const matchCount = recentUrls.filter(u => u.split('?')[0].split('#')[0] === normalizedUrl).length
+      if (matchCount >= 3) {
+        e.preventDefault()
+        recentUrls = []
+        // Show a message on the page
+        try {
+          ;(wv as any).executeJavaScript(`
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#eee;flex-direction:column;gap:16px">' +
+              '<h2 style="margin:0;color:#ff8a65">登录状态异常</h2>' +
+              '<p style="margin:0;color:#aaa;font-size:14px">检测到登录重定向循环，已自动停止。</p>' +
+              '<p style="margin:0;color:#888;font-size:13px">请点击下方按钮重新加载页面后再次扫码登录。</p>' +
+              '<button onclick="location.reload()" style="padding:8px 24px;border-radius:8px;border:1px solid #555;background:#2a2a3e;color:#fff;cursor:pointer;font-size:14px">重新加载</button>' +
+              '</div>'
+          `)
+        } catch {}
+        return
+      }
+    }) as EventListener)
 
     // Report URL + rendered DOM content for agent context
     wv.addEventListener('did-finish-load', () => {
@@ -184,14 +227,6 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
         }, 1200)
       }
     }) as EventListener)
-
-    wv.addEventListener('new-window', (e: any) => {
-      e.preventDefault()
-      const url = e.url || e.targetUrl
-      if (url && wv) {
-        ;(wv as any).loadURL(url)
-      }
-    })
 
     return wv
   }, [])

@@ -26,6 +26,7 @@ window.electronAPI = {
   selectFolder: (defaultPath: string) => ipcRenderer.invoke('select-folder', defaultPath),
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   registerWebviewSession: (wcId: number) => ipcRenderer.invoke('register-webview-session', wcId),
+  clearPartitionCookies: (partition: string) => ipcRenderer.invoke('clear-partition-cookies', partition),
   shellOpenPath: (p: string) => ipcRenderer.invoke('shell-open-path', p),
   shellShowItem: (p: string) => ipcRenderer.invoke('shell-show-item', p),
 
@@ -70,6 +71,11 @@ window.electronAPI = {
     const h = (_e: any, d: { url: string }) => cb(d)
     ipcRenderer.on('popup-navigate', h)
     return () => { ipcRenderer.removeListener('popup-navigate', h) }
+  },
+  onXhsNewTab: (cb: (data: { url: string }) => void) => {
+    const h = (_e: any, d: { url: string }) => cb(d)
+    ipcRenderer.on('xhs-new-tab', h)
+    return () => { ipcRenderer.removeListener('xhs-new-tab', h) }
   },
   dsLogin: () => ipcRenderer.invoke('ds-login'),
 
