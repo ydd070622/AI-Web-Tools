@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { AgentModel, AgentMessage, AgentContext } from '../types'
 import { AGENT_PROVIDERS, loadModels, streamChat, parseSSEStream, generateId } from '../services/agent'
 import { agentChat } from '../services/agent-loop'
@@ -147,6 +148,7 @@ function extractTables(text: string): Array<{ type: 'text' | 'table'; content: s
 function SimpleMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
       components={{
         code({ className, children, ...props }) {
           const match = /language-(\w+)/.exec(className || '')
@@ -304,22 +306,33 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
     }
   }
 
-  // Init: load models + restore sessions from IndexedDB
+  // Init: load models + start fresh session
   useEffect(() => {
-    loadModels().then(async (modelList) => {
+    loadModels().then((modelList) => {
       setModels(modelList)
-      const saved = await loadSessions()
-      if (saved.length > 0) {
-        setSessions(saved)
-        setActiveSessionId(saved[0].id)
-      } else {
-        const sid = generateId()
-        const s: Session = { id: sid, title: '新对话', modelId: modelList[0]?.id || null, messages: [] }
-        setSessions([s])
-        setActiveSessionId(sid)
-      }
+      const sid = generateId()
+      const s: Session = { id: sid, title: '新对话', modelId: modelList[0]?.id || null, messages: [] }
+      setSessions([s])
+      setActiveSessionId(sid)
     })
   }, [])
+
+  // Open history: load saved sessions from IndexedDB
+  const toggleHistory = useCallback(async () => {
+    if (historyOpen) { setHistoryOpen(false); return }
+    const saved = await loadSessions()
+    if (saved.length > 0) {
+      setSessions(prev => {
+        const currentIds = new Set(prev.map(s => s.id))
+        const merged = [...prev]
+        for (const s of saved) {
+          if (!currentIds.has(s.id)) merged.push(s)
+        }
+        return merged
+      })
+    }
+    setHistoryOpen(true)
+  }, [historyOpen])
 
   // Persist sessions to IndexedDB on change
   useEffect(() => {
@@ -703,7 +716,7 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
         <div className="agent-panel-header">
           <span className="agent-panel-title">智能体助手</span>
           <button onClick={createSession} title="新建对话"><Plus size={18} /></button>
-          <button onClick={() => setHistoryOpen(!historyOpen)} title="历史记录" className={historyOpen ? 'active' : ''}><History size={14} /></button>
+          <button onClick={toggleHistory} title="历史记录" className={historyOpen ? 'active' : ''}><History size={14} /></button>
           <button onClick={onClose} title="关闭"><X size={16} /></button>
         </div>
         {/* Loading indicator light bar */}

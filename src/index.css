@@ -2197,12 +2197,14 @@ textarea.input-base {
   font-size: 12px;
   line-height: 1.6;
   border: 1px solid var(--border-color);
+  table-layout: auto;
 }
 .agent-table th,
 .agent-table td {
   padding: 7px 12px;
   text-align: left;
   border: 1px solid var(--border-color);
+  white-space: nowrap;
 }
 .agent-table th {
   background: rgba(99, 102, 241, 0.1);
