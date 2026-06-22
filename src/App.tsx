@@ -519,7 +519,7 @@ export default function App() {
           {websiteSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />
           ))}
-          {activeId === 'xhs_juguang' && <XiaoHongShuCards onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} resetKey={xhsResetKey} />}
+          <XiaoHongShuCards visible={activeId === 'xhs_juguang'} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} resetKey={xhsResetKey} />
           {activeId === 'crm' && <CRMPanel />}
           {comfyuiSites.map(site => (
             <WebViewPage key={site.id} site={site} visible={activeId === site.id} onUrlChange={(url, content) => { setBrowserUrl(url); setBrowserContent(content || '') }} />

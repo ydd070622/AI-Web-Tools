@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { ArrowLeft, User, Plus, Trash2, Edit3, Check, X, Settings, RefreshCw, ArrowLeft as ArrowLeftIcon, ArrowRight, Copy, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, Edit3, Check, X, Settings, RefreshCw, ArrowLeft, ArrowRight, Copy, ExternalLink, ChevronDown } from 'lucide-react'
 
 type WebviewElement = HTMLElement & {
   src: string
@@ -28,31 +28,21 @@ interface Tab {
   title: string
 }
 
+interface ComboState {
+  tabs: Tab[]
+  activeTabId: string
+}
+
 const COLORS = ['#ff6b6b', '#feca57', '#48dbfb', '#a29bfe', '#55efc4', '#fd79a8', '#fdcb6e', '#74b9ff']
 const STORE_KEY = 'xhs_accounts'
 
-const SITES = [
-  { key: 'xhs',     label: '小红书',    url: 'https://www.xiaohongshu.com',       emoji: '📕', bg: 'rgba(255,71,87,0.15)',   border: 'rgba(255,71,87,0.4)',   text: '#ff4757' },
-  { key: 'jg',      label: '聚光平台', url: 'https://ad.xiaohongshu.com',          emoji: '📊', bg: 'rgba(255,138,101,0.12)', border: 'rgba(255,138,101,0.4)', text: '#ff8a65' },
-  { key: 'creator', label: '创作者中心', url: 'https://creator.xiaohongshu.com',    emoji: '✍️', bg: 'rgba(99,102,241,0.12)',  border: 'rgba(99,102,241,0.4)',  text: '#818cf8' },
-  { key: 'pro',     label: '专业号',    url: 'https://business.xiaohongshu.com',    emoji: '💼', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.4)',  text: '#fbbf24' },
+const PLATFORMS = [
+  { key: 'xhs',     label: '小红书',     url: 'https://www.xiaohongshu.com',       emoji: '📕' },
+  { key: 'creator', label: '创作者中心', url: 'https://creator.xiaohongshu.com',    emoji: '✍️' },
+  { key: 'jg',      label: '聚光平台',   url: 'https://ad.xiaohongshu.com',          emoji: '📊' },
 ]
 
 function genColor(i: number) { return COLORS[i % COLORS.length] }
-
-function formatRelativeTime(ts?: number): string {
-  if (!ts) return '未知'
-  const diff = Date.now() - ts
-  const min = Math.floor(diff / 60000)
-  if (min < 1) return '刚刚'
-  if (min < 60) return `${min} 分钟前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} 小时前`
-  const day = Math.floor(hr / 24)
-  if (day < 7) return `${day} 天前`
-  const d = new Date(ts)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 function defaultAccounts(): AccountConfig[] {
   const now = Date.now()
@@ -65,35 +55,96 @@ function defaultAccounts(): AccountConfig[] {
 
 let tabCounter = 0
 
-export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChange?: (url: string, pageContent?: string) => void; resetKey?: number }) {
+export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { visible: boolean; onUrlChange?: (url: string, pageContent?: string) => void; resetKey?: number }) {
   const [accounts, setAccounts] = useState<AccountConfig[]>(defaultAccounts())
   const [loaded, setLoaded] = useState(false)
   const [manageMode, setManageMode] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [activeView, setActiveView] = useState<{ account: AccountConfig; url: string; label: string } | null>(null)
-  const [showGrid, setShowGrid] = useState(true)
+  const [activeView, setActiveView] = useState<{ account: AccountConfig; platformKey: string; url: string; label: string } | null>(null)
 
-  // Re-clicking sidebar "小红书" returns to grid WITHOUT destroying webviews
+  // Re-clicking sidebar clears view back to empty state
   useEffect(() => {
-    if (resetKey && resetKey > 0) setShowGrid(true)
+    if (resetKey && resetKey > 0) setActiveView(null)
   }, [resetKey])
 
   const [tabs, setTabs] = useState<Tab[]>([])
   const [activeTabId, setActiveTabId] = useState('')
   const [ctxTab, setCtxTab] = useState<Tab | null>(null)
   const [ctxPos, setCtxPos] = useState<{ x: number; y: number } | null>(null)
-  const wvMap = useRef<Map<string, WebviewElement>>(new Map())
-  const containerRef = useRef<HTMLDivElement>(null)
-  const accountRef = useRef(activeView)
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
 
-  useEffect(() => { accountRef.current = activeView }, [activeView])
+  // Per-combo state persistence (tabs survive switching between accounts/platforms)
+  const comboStateRef = useRef<Map<string, ComboState>>(new Map())
+  // Refs mirroring state to avoid stale closures in event handlers
+  const tabsRef = useRef<Tab[]>([])
+  const activeTabIdRef = useRef('')
+  const activeViewRef = useRef(activeView)
+  const activeViewKeyRef = useRef('') // combo key of currently shown webviews
 
+  // Keep refs in sync
+  useEffect(() => { tabsRef.current = tabs }, [tabs])
+  useEffect(() => { activeTabIdRef.current = activeTabId }, [activeTabId])
+  useEffect(() => { activeViewRef.current = activeView }, [activeView])
+
+  const getComboKey = useCallback((view: typeof activeView) => {
+    return view ? `${view.account.id}:${view.platformKey}` : ''
+  }, [])
+
+  // Persist current combo state to ref (call before switching combos)
+  const saveComboState = useCallback(() => {
+    const key = activeViewKeyRef.current
+    if (!key) return
+    comboStateRef.current.set(key, {
+      tabs: [...tabsRef.current],
+      activeTabId: activeTabIdRef.current,
+    })
+  }, [])
+
+  // Swap to a combo: save current state, load target state
+  const swapCombo = useCallback((newView: typeof activeView) => {
+    saveComboState()
+    const newKey = getComboKey(newView)
+    activeViewKeyRef.current = newKey
+    let saved = comboStateRef.current.get(newKey)
+    if (!saved || saved.tabs.length === 0) {
+      // First visit: create initial tab
+      const initId = `xhs-${++tabCounter}`
+      saved = { tabs: [{ id: initId, url: newView!.url, title: newView!.label }], activeTabId: initId }
+      comboStateRef.current.set(newKey, saved)
+    }
+    setTabs(saved.tabs)
+    setActiveTabId(saved.activeTabId)
+    setCtxTab(null)
+    setCtxPos(null)
+  }, [saveComboState, getComboKey])
+
+  // Helper: update tabs and persist to combo ref
+  const updateTabs = useCallback((updater: (prev: Tab[]) => Tab[]) => {
+    setTabs(prev => {
+      const next = updater(prev)
+      comboStateRef.current.set(activeViewKeyRef.current, {
+        tabs: next,
+        activeTabId: activeTabIdRef.current,
+      })
+      return next
+    })
+  }, [])
+
+  // Helper: update activeTabId and persist to combo ref
+  const updateActiveTabId = useCallback((id: string) => {
+    setActiveTabId(id)
+    comboStateRef.current.set(activeViewKeyRef.current, {
+      tabs: tabsRef.current,
+      activeTabId: id,
+    })
+  }, [])
+
+  // Load persisted accounts
   useEffect(() => {
     (async () => {
       const saved = await window.electronAPI?.getStore(STORE_KEY)
       if (Array.isArray(saved) && saved.length > 0) {
-        // Add default status fields for old accounts
         const migrated = (saved as AccountConfig[]).map(a => ({
           ...a,
           loggedIn: a.loggedIn ?? false,
@@ -106,33 +157,22 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     })()
   }, [])
 
-  // Init tabs when entering a view
-  useEffect(() => {
-    if (!activeView) return
-    const initId = `xhs-${++tabCounter}`
-    setTabs([{ id: initId, url: activeView.url, title: activeView.label }])
-    setActiveTabId(initId)
-    setCtxTab(null)
-    setCtxPos(null)
-  }, [activeView?.account.id, activeView?.url])
-
-  // Listen for cross-subdomain popup requests from main process (e.g. 聚光 → 专业号)
+  // Listen for cross-subdomain popup requests from main process
   useEffect(() => {
     const unsub = window.electronAPI?.onXhsNewTab((data) => {
       const newId = `xhs-${++tabCounter}`
-      setTabs(prev => [...prev, { id: newId, url: data.url, title: '加载中...' }])
-      setActiveTabId(newId)
-      setShowGrid(false)
+      updateTabs(prev => [...prev, { id: newId, url: data.url, title: '加载中...' }])
+      updateActiveTabId(newId)
     })
     return () => { unsub?.() }
-  }, [])
+  }, [updateTabs, updateActiveTabId])
 
   const saveStore = useCallback(async (list: AccountConfig[]) => {
     if (window.electronAPI) await window.electronAPI.setStore(STORE_KEY, list)
   }, [])
 
   const createWebview = useCallback((tabId: string, tabUrl: string) => {
-    const acc = accountRef.current
+    const acc = activeViewRef.current
     const accountId = acc?.account.id || ''
     const wv = document.createElement('webview') as unknown as WebviewElement
     wv.setAttribute('src', tabUrl)
@@ -143,31 +183,24 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
       position: 'absolute', top: '0', left: '0',
     })
 
-    // Redirect loop detection: track recent URLs to prevent login <-> dashboard infinite loops
     let recentUrls: string[] = []
 
     wv.addEventListener('page-title-updated', (e: any) => {
       if (e.title) {
-        setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title: e.title } : t))
+        updateTabs(prev => prev.map(t => t.id === tabId ? { ...t, title: e.title } : t))
       }
     })
 
-    // Intercept navigation to detect and break redirect loops
     wv.addEventListener('will-navigate', ((e: any) => {
       const url = e.url || ''
       if (!url.startsWith('http')) return
-
-      // Track URL history for loop detection
       recentUrls.push(url)
       if (recentUrls.length > 6) recentUrls.shift()
-
-      // Detect login loop: same URL visited 3+ times in quick succession
       const normalizedUrl = url.split('?')[0].split('#')[0]
       const matchCount = recentUrls.filter(u => u.split('?')[0].split('#')[0] === normalizedUrl).length
       if (matchCount >= 3) {
         e.preventDefault()
         recentUrls = []
-        // Show a message on the page
         try {
           ;(wv as any).executeJavaScript(`
             document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#eee;flex-direction:column;gap:16px">' +
@@ -182,7 +215,6 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
       }
     }) as EventListener)
 
-    // Report URL + rendered DOM content for agent context
     wv.addEventListener('did-finish-load', () => {
       if (onUrlChange) {
         const url = (wv as any).getURL?.() || tabUrl
@@ -212,7 +244,6 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
 
     wv.addEventListener('did-navigate-in-page', ((e: any) => {
       if (onUrlChange && e.url) {
-        // Delay extraction to wait for SPA content to render after navigation
         setTimeout(() => {
           try {
             ;(wv as any).executeJavaScript('document.body?document.body.innerText:document.documentElement.innerText').then((content: string) => {
@@ -229,11 +260,25 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     }) as EventListener)
 
     return wv
-  }, [])
+  }, [onUrlChange, updateTabs])
+
+  // Show/hide webviews based on current active tab
+  const wvMap = useRef<Map<string, WebviewElement>>(new Map())
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const container = containerRef.current
-    if (!container || !activeView) return
+    if (!container) return
+
+    // Hide all webviews when page is not visible (Electron webview ignores parent CSS)
+    if (!visible) {
+      wvMap.current.forEach(w => {
+        if (container.contains(w)) w.style.display = 'none'
+      })
+      return
+    }
+
+    if (!activeView) return
 
     const tab = tabs.find(t => t.id === activeTabId)
     if (!tab) return
@@ -252,8 +297,9 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
         (w.style as any).display = id === tab.id ? '' : 'none'
       }
     })
-  }, [activeTabId, tabs, activeView, createWebview])
+  }, [visible, activeTabId, tabs, activeView, createWebview])
 
+  // Cleanup all webviews on unmount
   useEffect(() => {
     return () => {
       wvMap.current.forEach(w => w.remove())
@@ -261,14 +307,13 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     }
   }, [])
 
+  // ── Tab / Navigation Handlers ──
   const handleClose = (id: string) => {
     if (tabs.length <= 1) return
-    setTabs(prev => {
-      const idx = prev.findIndex(t => t.id === id)
-      const next = prev.filter(t => t.id !== id)
-      setActiveTabId(activeTabId === id ? next[Math.min(idx, next.length - 1)].id : activeTabId)
-      return next
-    })
+    const idx = tabs.findIndex(t => t.id === id)
+    const next = tabs.filter(t => t.id !== id)
+    updateTabs(() => next)
+    updateActiveTabId(activeTabId === id ? next[Math.min(idx, next.length - 1)].id : activeTabId)
     const wv = wvMap.current.get(id)
     if (wv) { wv.remove(); wvMap.current.delete(id) }
   }
@@ -312,6 +357,7 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     closeCtx()
   }
 
+  // ── Account Management ──
   const renameAccount = async (id: string, name: string) => {
     const updated = accounts.map(a => a.id === id ? { ...a, name } : a)
     setAccounts(updated)
@@ -323,6 +369,7 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     const updated = accounts.filter(a => a.id !== id)
     setAccounts(updated)
     saveStore(updated)
+    if (activeView?.account.id === id) setActiveView(null)
   }
 
   const addAccount = async () => {
@@ -338,6 +385,9 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     const updated = [...accounts, newAcc]
     setAccounts(updated)
     saveStore(updated)
+    setManageMode(true)
+    setEditingId(newAcc.id)
+    setEditName(newAcc.name)
   }
 
   const toggleLogin = async (id: string) => {
@@ -356,230 +406,178 @@ export default function XiaoHongShuCards({ onUrlChange, resetKey }: { onUrlChang
     saveStore(updated)
   }
 
-  if (!loaded) return null
-
-  const cols = Math.min(accounts.length, 4)
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--bg-secondary)',
-    borderRadius: 16,
-    border: '1px solid var(--border-color)',
-    padding: 24,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 12,
-    transition: 'all 0.2s',
-    width: cols <= 2 ? 280 : undefined,
-    flex: cols > 2 ? 1 : undefined,
+  // ── Sidebar Selection ──
+  const handleSelectPlatform = (platformKey: string, accountId: string) => {
+    if (manageMode) {
+      const acc = accounts.find(a => a.id === accountId)
+      if (acc) { setEditingId(accountId); setEditName(acc.name) }
+      return
+    }
+    const acc = accounts.find(a => a.id === accountId)
+    const plat = PLATFORMS.find(p => p.key === platformKey)
+    if (!acc || !plat) return
+    // Update lastActive
+    const updated = accounts.map(a => a.id === acc.id ? { ...a, lastActive: Date.now() } : a)
+    setAccounts(updated)
+    saveStore(updated)
+    // Swap combo: saves old tabs, restores (or creates) new tabs
+    setActiveView({ account: acc, platformKey, url: plat.url, label: plat.label })
+    swapCombo({ account: acc, platformKey, url: plat.url, label: plat.label })
   }
 
-  return (
-    <>
-      {/* WebView area — kept alive even when grid is shown */}
-      {activeView && (
-      <div style={{ display: showGrid ? 'none' : 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderBottom: '1px solid var(--border-color)', flexShrink: 0, overflow: 'hidden' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: activeView.account.color, flexShrink: 0, whiteSpace: 'nowrap' }}>{activeView.account.name}</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-              onClick={handleGoBack} title="后退"><ArrowLeftIcon size={13} /></div>
-            <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
-              onClick={handleGoForward} title="前进"><ArrowRight size={13} /></div>
-          </div>
-          <div style={{ display: 'flex', gap: 2, flex: 1, minWidth: 0, overflow: 'hidden', alignItems: 'center' }}>
-            {tabs.map(tab => (
-              <div
-                key={tab.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '2px 10px', borderRadius: 6, cursor: 'pointer',
-                  fontSize: 11, whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0, maxWidth: 160,
-                  background: tab.id === activeTabId ? 'rgba(99,102,241,0.15)' : 'transparent',
-                  color: tab.id === activeTabId ? 'var(--text-primary)' : 'var(--text-muted)',
-                }}
-                onClick={() => setActiveTabId(tab.id)}
-                onContextMenu={e => handleTabContext(e, tab)}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.title}</span>
-                {tabs.length > 1 && (
-                  <span style={{ opacity: 0.5, fontSize: 14, lineHeight: 1, cursor: 'pointer', flexShrink: 0 }}
-                    onClick={e => { e.stopPropagation(); handleClose(tab.id) }}>×</span>
-                )}
-              </div>
-            ))}
-          </div>
-          <div style={{ padding: '3px 5px', borderRadius: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
-            onClick={handleRefresh} title="刷新"><RefreshCw size={13} /><span style={{ fontSize: 12 }}>刷新网页</span></div>
-        </div>
-        <div ref={containerRef} style={{ flex: 1, position: 'relative' }} />
-        {ctxTab && ctxPos && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={closeCtx} onContextMenu={e => { e.preventDefault(); closeCtx() }}>
-            <div style={{
-              position: 'absolute', left: ctxPos.x, top: ctxPos.y,
-              background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-              borderRadius: 8, padding: 4, minWidth: 140,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-            }}>
-              <div className="webview-ctx-item" onClick={handleCopyUrl}><Copy size={12} /> 复制网址</div>
-              <div className="webview-ctx-item" onClick={handleOpenExternal}><ExternalLink size={12} /> 在浏览器中打开</div>
-              <div style={{ height: 1, background: 'var(--border-color)', margin: '2px 8px' }} />
-              <div className="webview-ctx-item" onClick={() => { handleClose(ctxTab.id); closeCtx() }}>关闭标签</div>
-            </div>
-          </div>
-        )}
-      </div>
-      )}
+  const toggleCategory = (catKey: string) => {
+    setCollapsedCats(prev => {
+      const next = new Set(prev)
+      if (next.has(catKey)) next.delete(catKey)
+      else next.add(catKey)
+      return next
+    })
+  }
 
-      {/* Grid view */}
-  <div style={{ display: showGrid ? 'flex' : 'none', height: '100%', background: 'var(--bg-primary)', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, maxWidth: 1100, width: '100%', padding: '0 24px' }}>
-        <div style={{ textAlign: 'center', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>小红书聚光</h1>
+  if (!loaded) return null
+
+  return (
+    <div className="xhs-panel" style={{ display: visible ? '' : 'none' }}>
+      {/* ===== Secondary Sidebar ===== */}
+      <div className="xhs-sidebar">
+        <div className="xhs-sidebar-logo">
+          <div className="xhs-sidebar-logo-icon">📕</div>
+          <span className="xhs-sidebar-logo-text">工作台</span>
+          <span className="xhs-sidebar-logo-badge">{accounts.length}账号</span>
+        </div>
+
+        {PLATFORMS.map(plat => {
+          const isCollapsed = collapsedCats.has(plat.key)
+          return (
+            <div key={plat.key}>
+              <div className="xhs-sidebar-section" onClick={() => toggleCategory(plat.key)}>
+                <span>{plat.emoji} {plat.label}</span>
+                <ChevronDown size={10} className={`xhs-sidebar-chevron ${isCollapsed ? 'collapsed' : ''}`} />
+              </div>
+              {!isCollapsed && (
+                <div className="xhs-sidebar-nav">
+                  {accounts.map(acc => {
+                    const isActive = activeView?.account.id === acc.id && activeView?.platformKey === plat.key
+                    const isEditing = editingId === acc.id
+                    return isEditing ? (
+                      <div key={acc.id} className="xhs-sidebar-item active" style={{ padding: '4px 10px' }}>
+                        <span className={`xhs-account-dot ${acc.loggedIn ? 'online' : 'offline'}`} />
+                        <input
+                          className="xhs-rename-input"
+                          value={editName}
+                          onChange={e => setEditName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') renameAccount(acc.id, editName) }}
+                          onBlur={() => renameAccount(acc.id, editName)}
+                          onClick={e => e.stopPropagation()}
+                          autoFocus
+                        />
+                        <span className="xhs-action-icons">
+                          <span onClick={e => { e.stopPropagation(); renameAccount(acc.id, editName) }} title="确认"><Check size={12} /></span>
+                          <span onClick={e => { e.stopPropagation(); setEditingId(null) }} title="取消"><X size={12} /></span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        key={acc.id}
+                        className={`xhs-sidebar-item ${isActive ? 'active' : ''}`}
+                        onClick={() => handleSelectPlatform(plat.key, acc.id)}
+                      >
+                        <span
+                          className={`xhs-account-dot ${acc.loggedIn ? 'online' : 'offline'}`}
+                          onClick={e => { e.stopPropagation(); toggleLogin(acc.id) }}
+                          title={acc.loggedIn ? '已登录 (点击切换)' : '未登录 (点击切换)'}
+                        />
+                        <span className="xhs-account-name">{acc.name}</span>
+                        {manageMode && (
+                          <span className="xhs-action-icons">
+                            <span onClick={e => { e.stopPropagation(); setEditingId(acc.id); setEditName(acc.name) }} title="重命名"><Edit3 size={10} /></span>
+                            <span onClick={e => { e.stopPropagation(); deleteAccount(acc.id) }} title="删除"><Trash2 size={10} /></span>
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Sidebar Footer */}
+        <div className="xhs-sidebar-footer">
           <button
-            onClick={() => setManageMode(!manageMode)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', borderRadius: 6,
-              background: manageMode ? 'var(--accent)' : 'transparent',
-              color: manageMode ? '#fff' : 'var(--text-muted)',
-              border: `1px solid ${manageMode ? 'var(--accent)' : 'var(--border-color)'}`,
-              fontSize: 12, cursor: 'pointer',
-            }}
+            className={`xhs-manage-btn ${manageMode ? 'active' : ''}`}
+            onClick={() => { setManageMode(!manageMode); setEditingId(null) }}
           >
-            <Settings size={13} /> {manageMode ? '完成' : '管理'}
+            <Settings size={11} /> {manageMode ? '完成管理' : '管理账号'}
+          </button>
+          <button className="xhs-manage-btn" onClick={addAccount}>
+            <Plus size={11} /> 添加账号
           </button>
         </div>
-        {manageMode && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-            <button
-              onClick={addAccount}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '6px 16px', borderRadius: 8,
-                background: 'var(--accent)', color: '#fff', border: 'none',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              <Plus size={14} /> 添加账号
-            </button>
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 20, width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
-          {accounts.map(acc => {
-            const isEditing = editingId === acc.id
-            const isOnline = acc.loggedIn
-            return (
-              <div key={acc.id} style={cardStyle} className="xhs-acc-card">
-                {/* Login toggle button */}
-                <button
-                  className={`xhs-login-btn ${isOnline ? 'logged' : ''}`}
-                  onClick={() => toggleLogin(acc.id)}
-                >
-                  {isOnline ? '✓ 已登录' : '标记登录'}
-                </button>
+      </div>
 
-                <div style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: `${acc.color}22`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, position: 'relative',
-                }}>
-                  <User size={24} color={acc.color} />
+      {/* ===== Main Content ===== */}
+      <div className="xhs-main">
+        {activeView ? (
+          <>
+            {/* Tab Bar */}
+            <div className="xhs-tabbar">
+              <span className="xhs-tabbar-account" style={{ color: activeView.account.color }}>
+                <span className={`xhs-account-dot ${activeView.account.loggedIn ? 'online' : 'offline'}`} style={{ position: 'static', display: 'inline-block' }} />
+                {activeView.account.name}
+              </span>
+              <div className="xhs-tabbar-nav">
+                <div className="xhs-tabbar-nav-btn" onClick={handleGoBack} title="后退"><ArrowLeft size={13} /></div>
+                <div className="xhs-tabbar-nav-btn" onClick={handleGoForward} title="前进"><ArrowRight size={13} /></div>
+              </div>
+              <div className="xhs-tabs">
+                {tabs.map(tab => (
                   <div
-                    className={`xhs-online-dot ${isOnline ? 'online' : 'offline'}`}
-                    onClick={() => toggleLogin(acc.id)}
-                  />
-                </div>
-
-                {isEditing ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input
-                      value={editName}
-                      onChange={e => setEditName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') renameAccount(acc.id, editName) }}
-                      style={{
-                        width: 120, padding: '2px 6px', borderRadius: 4,
-                        border: '1px solid var(--accent)', background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)', fontSize: 13, textAlign: 'center', outline: 'none',
-                      }}
-                      autoFocus
-                    />
-                    <Check size={14} style={{ cursor: 'pointer', color: '#22c55e' }}
-                      onClick={() => renameAccount(acc.id, editName)} />
-                    <X size={14} style={{ cursor: 'pointer', color: 'var(--text-muted)' }}
-                      onClick={() => setEditingId(null)} />
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{acc.name}</span>
-                    {manageMode && (
-                      <>
-                        <Edit3 size={12} style={{ cursor: 'pointer', color: 'var(--text-muted)' }}
-                          onClick={() => { setEditingId(acc.id); setEditName(acc.name) }} />
-                        <Trash2 size={12} style={{ cursor: 'pointer', color: '#ef4444' }}
-                          onClick={() => deleteAccount(acc.id)} />
-                      </>
+                    key={tab.id}
+                    className={`xhs-tab ${tab.id === activeTabId ? 'active' : ''}`}
+                    onClick={() => updateActiveTabId(tab.id)}
+                    onContextMenu={e => handleTabContext(e, tab)}
+                  >
+                    <span className="xhs-tab-title">{tab.title}</span>
+                    {tabs.length > 1 && (
+                      <span className="xhs-tab-close" onClick={e => { e.stopPropagation(); handleClose(tab.id) }}>×</span>
                     )}
                   </div>
-                )}
+                ))}
+              </div>
+              <div className="xhs-refresh-btn" onClick={handleRefresh}><RefreshCw size={11} /> 刷新</div>
+            </div>
 
-                {/* Status panel */}
-                <div className="xhs-status-section">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>登录状态</span>
-                    <span style={{ color: isOnline ? '#22c55e' : 'var(--text-muted)', fontWeight: 500 }}>
-                      {isOnline ? '● 已登录' : '○ 未登录'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>最近活跃</span>
-                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
-                      {formatRelativeTime(acc.lastActive)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>上次登录</span>
-                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
-                      {formatRelativeTime(acc.lastLogin)}
-                    </span>
-                  </div>
-                </div>
+            {/* WebView Container */}
+            <div ref={containerRef} className="xhs-webview-container" />
 
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>🔒 独立 session</span>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, width: '100%', marginTop: 4 }}>
-                  {SITES.map(site => (
-                    <button
-                      key={site.key}
-                      onClick={() => {
-                        // Update lastActive
-                        const updated = accounts.map(a => a.id === acc.id ? { ...a, lastActive: Date.now() } : a)
-                        setAccounts(updated)
-                        saveStore(updated)
-                        setActiveView({ account: acc, url: site.url, label: site.label })
-                        setShowGrid(false)
-                      }}
-                      style={{
-                        padding: '7px 8px', borderRadius: 8,
-                        background: site.bg,
-                        color: site.text,
-                        border: `1px solid ${site.border}`,
-                        fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {site.emoji} {site.label}
-                    </button>
-                  ))}
+            {/* Context Menu */}
+            {ctxTab && ctxPos && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={closeCtx} onContextMenu={e => { e.preventDefault(); closeCtx() }}>
+                <div style={{
+                  position: 'absolute', left: ctxPos.x, top: ctxPos.y,
+                  background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                  borderRadius: 8, padding: 4, minWidth: 140,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                  <div className="webview-ctx-item" onClick={handleCopyUrl}><Copy size={12} /> 复制网址</div>
+                  <div className="webview-ctx-item" onClick={handleOpenExternal}><ExternalLink size={12} /> 在浏览器中打开</div>
+                  <div style={{ height: 1, background: 'var(--border-color)', margin: '2px 8px' }} />
+                  <div className="webview-ctx-item" onClick={() => { handleClose(ctxTab.id); closeCtx() }}>关闭标签</div>
                 </div>
               </div>
-            )
-          })}
-        </div>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-          每个账号独立 cookie 隔离，小红书、聚光平台、创作者中心、专业号共享同一登录态
-        </p>
+            )}
+          </>
+        ) : (
+          /* Empty State */
+          <div className="xhs-empty">
+            <div className="xhs-empty-icon">📕</div>
+            <div className="xhs-empty-text">选择左侧账号开始操作</div>
+            <div className="xhs-empty-hint">点击账号 → 平台组合，直接进入对应网页</div>
+          </div>
+        )}
       </div>
     </div>
-    </>
   )
 }
