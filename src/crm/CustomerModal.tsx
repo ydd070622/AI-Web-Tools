@@ -72,7 +72,7 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
           </div>
           <div className="crm-form-row">
             <div className="crm-form-group"><label className="crm-form-label">手机号</label><input className="crm-form-input" value={form.phone} onChange={e => h('phone', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">微信号</label><input className="crm-form-input" value={form.wechat} onChange={e => h('wechat', e.target.value)} /></div>
+            <div className="crm-form-group"><label className="crm-form-label">微信名</label><input className="crm-form-input" value={form.wechat} onChange={e => h('wechat', e.target.value)} placeholder="如：陈小姐-0612-奶油风" /></div>
           </div>
           <div className="crm-form-row">
             <div className="crm-form-group">

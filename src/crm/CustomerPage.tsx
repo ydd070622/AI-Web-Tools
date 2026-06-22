@@ -15,7 +15,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
   const customers = data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead').map(enrichCust)
 
   const fuse = useMemo(() => new Fuse(customers, {
-    keys: ['name', 'phone', 'houseType', 'city', 'style', 'followUpNote', 'notes'],
+    keys: ['name', 'phone', 'wechat', 'houseType', 'city', 'style', 'followUpNote', 'notes'],
     threshold: 0.4,
   }), [customers])
 
@@ -47,7 +47,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       <div className="crm-toolbar">
         <div className="crm-toolbar-left">
           <Search size={14} style={{ opacity: 0.4 }} />
-          <input className="crm-search" placeholder="搜索客户、电话、户型…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="crm-search" placeholder="搜索客户、微信名、电话、户型…" value={search} onChange={e => setSearch(e.target.value)} />
           {filterNoteId && (
             <span className="crm-filter-chip">
               📌 {data.notes.find(n => n.id === filterNoteId)?.title?.slice(0, 16)}…
@@ -83,7 +83,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
             <thead>
               <tr>
                 {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
-                <th style={{ width: 140 }}>客户</th>
+                <th style={{ width: 180 }}>客户</th>
                 <th style={{ width: 130 }}>来源</th>
                 <th style={{ width: 80 }}>阶段</th>
                 <th style={{ width: 70 }}>户型</th>
@@ -106,10 +106,13 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                     <td>
                       <div className="crm-td-name">
                         <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>
-                        {c.name}
+                        <div>
+                          <div>{c.name}</div>
+                          <div className="crm-muted" style={{ fontSize: 10, lineHeight: 1.3 }}>{c.wechat || <span style={{ opacity: 0.4 }}>无微信名</span>}</div>
+                        </div>
                       </div>
                     </td>
-                    <td><span className="crm-source-link">{c.sourceIcon} {c.sourceLabel}</span></td>
+                    <td><span className="crm-source-link" title={c.sourceLabel}>{c.sourceIcon} {c.sourceLabel}</span></td>
                     <td><span className={`crm-tag stage-${c.stage}`}><span className="crm-dot-sm" style={{ background: stage?.dotColor }} />{stage?.label}</span></td>
                     <td><span className="crm-info-text">{c.houseType || <span className="crm-muted">未填</span>}</span></td>
                     <td><span className="crm-info-text">{c.city || <span className="crm-muted">未填</span>}</span></td>
@@ -151,7 +154,8 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                         <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${avatarGrad(c.name)[0]},${avatarGrad(c.name)[1]})` }}>{c.name[0]}</div>
                         <div>
                           <div className="crm-card-name">{c.name}</div>
-                          <div className="crm-card-source">{c.sourceIcon} {c.sourceLabel}</div>
+                          <div className="crm-card-source" title={c.sourceLabel}>{c.sourceIcon} {c.sourceLabel}</div>
+                          {c.wechat && <div className="crm-muted" style={{ fontSize: 9, lineHeight: 1.2, marginTop: 1 }}>{c.wechat}</div>}
                         </div>
                       </div>
                       <div className="crm-card-tags">

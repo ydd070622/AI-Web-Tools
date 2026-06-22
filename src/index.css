@@ -2623,7 +2623,7 @@ textarea.input-base {
 .crm-muted { font-size: 11px; color: var(--text-muted); }
 .crm-num { text-align: right; }
 .crm-amount { font-weight: 700; color: var(--success); font-family: var(--font-mono); }
-.crm-source-link { font-size: 11px; color: var(--accent); }
+.crm-source-link { font-size: 11px; color: var(--accent); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
 .crm-info-text { font-size: 11px; }
 .crm-notes-cell { font-size: 11px; color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crm-note-title { font-weight: 500; }

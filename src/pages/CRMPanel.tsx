@@ -91,7 +91,7 @@ export default function CRMPanel() {
     let sourceLabel = src?.label || ''
     if (c.source === 'xiaohongshu' && c.sourceNoteId) {
       const note = data.notes.find(n => n.id === c.sourceNoteId)
-      sourceLabel = note ? note.title.slice(0, 12) : '小红书'
+      sourceLabel = note ? note.title : '小红书'
     }
     return { ...c, sourceLabel, sourceIcon: src?.icon || '📌' }
   }, [data.notes])
