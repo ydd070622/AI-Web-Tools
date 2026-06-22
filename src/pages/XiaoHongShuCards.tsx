@@ -42,6 +42,22 @@ const PLATFORMS = [
   { key: 'jg',      label: '聚光平台',   url: 'https://ad.xiaohongshu.com',          emoji: '📊' },
 ]
 
+function formatRelativeTime(ts: number): string {
+  if (!ts) return ''
+  const diff = Date.now() - ts
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return '刚刚活跃'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}分钟前活跃`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}小时前活跃`
+  const day = Math.floor(hr / 24)
+  if (day < 7) return `${day}天前活跃`
+  const wk = Math.floor(day / 7)
+  if (wk < 4) return `${wk}周前活跃`
+  return `${Math.floor(day / 30)}月前活跃`
+}
+
 function genColor(i: number) { return COLORS[i % COLORS.length] }
 
 function defaultAccounts(): AccountConfig[] {
@@ -440,35 +456,33 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
     <div className="xhs-panel" style={{ display: visible ? '' : 'none' }}>
       {/* ===== Secondary Sidebar ===== */}
       <div className="xhs-sidebar">
-        <div className="xhs-sidebar-logo">
-          <div className="xhs-sidebar-logo-icon">📕</div>
-          <span className="xhs-sidebar-logo-text">工作台</span>
-          <span className="xhs-sidebar-logo-badge">{accounts.length}账号</span>
-        </div>
-
         {PLATFORMS.map(plat => {
           const isCollapsed = collapsedCats.has(plat.key)
+          const accsInPlat = accounts
           return (
-            <div key={plat.key}>
+            <div key={plat.key} className="xhs-sidebar-section-group">
               <div className="xhs-sidebar-section" onClick={() => toggleCategory(plat.key)}>
-                <span>{plat.emoji} {plat.label}</span>
-                <ChevronDown size={10} className={`xhs-sidebar-chevron ${isCollapsed ? 'collapsed' : ''}`} />
+                <span className="xhs-section-icon">{plat.emoji}</span>
+                <span className="xhs-section-title">{plat.label}</span>
+                <span className="xhs-section-count">{accsInPlat.length}</span>
+                <ChevronDown size={12} className={`xhs-sidebar-chevron ${isCollapsed ? 'collapsed' : ''}`} />
               </div>
               {!isCollapsed && (
                 <div className="xhs-sidebar-nav">
-                  {accounts.map(acc => {
+                  {accsInPlat.map(acc => {
                     const isActive = activeView?.account.id === acc.id && activeView?.platformKey === plat.key
                     const isEditing = editingId === acc.id
                     return isEditing ? (
-                      <div key={acc.id} className="xhs-sidebar-item active" style={{ padding: '4px 10px' }}>
-                        <span className={`xhs-account-dot ${acc.loggedIn ? 'online' : 'offline'}`} />
+                      <div key={acc.id} className="xhs-sidebar-item renaming active" onClick={e => e.stopPropagation()}>
+                        <div className="xhs-account-avatar" style={{ background: acc.color }}>
+                          {(editName || acc.name).charAt(0)}
+                        </div>
                         <input
                           className="xhs-rename-input"
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') renameAccount(acc.id, editName) }}
                           onBlur={() => renameAccount(acc.id, editName)}
-                          onClick={e => e.stopPropagation()}
                           autoFocus
                         />
                         <span className="xhs-action-icons">
@@ -482,16 +496,24 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
                         className={`xhs-sidebar-item ${isActive ? 'active' : ''}`}
                         onClick={() => handleSelectPlatform(plat.key, acc.id)}
                       >
-                        <span
-                          className={`xhs-account-dot ${acc.loggedIn ? 'online' : 'offline'}`}
+                        <div
+                          className="xhs-account-avatar" style={{ background: acc.color }}
                           onClick={e => { e.stopPropagation(); toggleLogin(acc.id) }}
-                          title={acc.loggedIn ? '已登录 (点击切换)' : '未登录 (点击切换)'}
-                        />
-                        <span className="xhs-account-name">{acc.name}</span>
+                          title={acc.loggedIn ? '已登录 (点击头像切换)' : '未登录 (点击头像切换)'}
+                        >
+                          {acc.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="xhs-account-name">{acc.name}</div>
+                          <div className="xhs-account-meta">
+                            {acc.loggedIn ? '在线' : '离线'}
+                            {acc.lastActive ? ` · ${formatRelativeTime(acc.lastActive)}` : ''}
+                          </div>
+                        </div>
                         {manageMode && (
                           <span className="xhs-action-icons">
-                            <span onClick={e => { e.stopPropagation(); setEditingId(acc.id); setEditName(acc.name) }} title="重命名"><Edit3 size={10} /></span>
-                            <span onClick={e => { e.stopPropagation(); deleteAccount(acc.id) }} title="删除"><Trash2 size={10} /></span>
+                            <span onClick={e => { e.stopPropagation(); setEditingId(acc.id); setEditName(acc.name) }} title="重命名"><Edit3 size={11} /></span>
+                            <span onClick={e => { e.stopPropagation(); deleteAccount(acc.id) }} title="删除"><Trash2 size={11} /></span>
                           </span>
                         )}
                       </div>
@@ -505,14 +527,14 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
 
         {/* Sidebar Footer */}
         <div className="xhs-sidebar-footer">
+          <button className="xhs-manage-btn" onClick={addAccount}>
+            <Plus size={11} /> 添加
+          </button>
           <button
             className={`xhs-manage-btn ${manageMode ? 'active' : ''}`}
             onClick={() => { setManageMode(!manageMode); setEditingId(null) }}
           >
-            <Settings size={11} /> {manageMode ? '完成管理' : '管理账号'}
-          </button>
-          <button className="xhs-manage-btn" onClick={addAccount}>
-            <Plus size={11} /> 添加账号
+            <Settings size={11} /> {manageMode ? '完成' : '管理'}
           </button>
         </div>
       </div>

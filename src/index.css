@@ -1751,55 +1751,9 @@ textarea.input-base {
 }
 
 /* ===== XHS Account Status ===== */
-.xhs-acc-card {
-  position: relative;
-}
-
-/* Online dot */
-.xhs-online-dot {
-  position: absolute; bottom: 1px; right: 1px;
-  width: 12px; height: 12px; border-radius: 50%;
-  border: 2px solid var(--bg-secondary);
-  cursor: pointer; transition: all 0.2s;
-}
-.xhs-online-dot.online {
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34,197,94,0.5);
-  animation: xhs-pulse 2s infinite;
-}
-.xhs-online-dot.offline {
-  background: rgba(255,255,255,0.2);
-}
 @keyframes xhs-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
   50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
-}
-
-/* Status section */
-.xhs-status-section {
-  width: 100%; display: flex; flex-direction: column; gap: 5px;
-  padding: 8px 10px; border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.03);
-}
-
-/* Login button */
-.xhs-login-btn {
-  position: absolute; top: 8px; right: 8px;
-  padding: 2px 8px; border-radius: 4px;
-  font-size: 10px; font-weight: 600;
-  cursor: pointer;
-  border: 1px solid rgba(99,102,241,0.3);
-  background: rgba(99,102,241,0.1);
-  color: #818cf8;
-  opacity: 0; transition: all 0.15s;
-}
-.xhs-acc-card:hover .xhs-login-btn { opacity: 1; }
-.xhs-login-btn:hover { background: rgba(99,102,241,0.2); }
-.xhs-login-btn.logged {
-  color: #4ade80;
-  border-color: rgba(34,197,94,0.3);
-  background: rgba(34,197,94,0.08);
 }
 
 /* ===== XHS Panel Layout ===== */
@@ -1809,103 +1763,108 @@ textarea.input-base {
 
 /* XHS Secondary Sidebar */
 .xhs-sidebar {
-  width: 170px; flex-shrink: 0;
+  width: 200px; flex-shrink: 0;
   background: var(--bg-sidebar); border-right: 1px solid var(--border-color);
   display: flex; flex-direction: column; user-select: none;
   overflow-y: auto;
 }
-.xhs-sidebar-logo {
-  padding: 14px 14px 10px; display: flex; align-items: center; gap: 7px;
-  border-bottom: 1px solid var(--border-color);
-}
-.xhs-sidebar-logo-icon {
-  width: 26px; height: 26px; border-radius: 8px;
-  background: linear-gradient(135deg, #ff4757, #ff6b81);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 14px; font-weight: 800;
-}
-.xhs-sidebar-logo-text { color: var(--text-primary); font-size: 13px; font-weight: 700; }
-.xhs-sidebar-logo-badge {
-  margin-left: auto; font-size: 10px; padding: 1px 6px;
-  border-radius: 8px; background: var(--bg-active);
-  color: var(--text-muted);
-}
 
-/* Category section header */
-.xhs-sidebar-section {
-  padding: 12px 12px 4px; font-size: 10px; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
-  display: flex; align-items: center; gap: 4px;
-  cursor: pointer; transition: color 0.15s;
+/* ===== Section with divider ===== */
+.xhs-sidebar-section-group + .xhs-sidebar-section-group {
+  border-top: 1px solid var(--border-color);
 }
-.xhs-sidebar-section:hover { color: var(--text-secondary); }
+.xhs-sidebar-section {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  transition: background 0.15s;
+}
+.xhs-sidebar-section:hover { background: var(--bg-card-hover); }
+.xhs-section-icon {
+  font-size: 15px; opacity: 0.7; width: 20px; text-align: center; flex-shrink: 0;
+}
+.xhs-section-title {
+  font-size: 13px; font-weight: 600;
+}
+.xhs-section-count {
+  margin-left: auto; font-size: 10px; color: var(--text-muted);
+  background: var(--bg-card); padding: 1px 7px; border-radius: 8px;
+}
 .xhs-sidebar-chevron {
-  margin-left: auto; transition: transform 0.2s;
+  transition: transform 0.25s; flex-shrink: 0;
+  color: var(--text-muted);
 }
 .xhs-sidebar-chevron.collapsed { transform: rotate(-90deg); }
 
-/* Account items */
-.xhs-sidebar-nav { display: flex; flex-direction: column; padding: 2px 6px; gap: 1px; }
+/* ===== Account items (grid: avatar + info) ===== */
+.xhs-sidebar-nav {
+  padding: 0 14px 6px; display: flex; flex-direction: column;
+}
 .xhs-sidebar-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px; border-radius: 6px;
-  color: var(--text-secondary); cursor: pointer;
-  transition: all 0.15s; font-size: 12px; font-weight: 500;
+  display: grid; grid-template-columns: 24px 1fr;
+  align-items: center; gap: 10px;
+  padding: 7px 0; border-radius: 4px;
+  cursor: pointer; color: var(--text-secondary);
+  font-size: 12px; transition: color 0.15s;
   position: relative;
 }
-.xhs-sidebar-item:hover { background: var(--bg-card-hover); color: var(--text-primary); }
-.xhs-sidebar-item.active { background: var(--bg-active); color: var(--text-primary); }
-.xhs-sidebar-item.active::before {
-  content: ''; position: absolute; left: -4px; top: 6px; bottom: 6px;
-  width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
-}
-.xhs-account-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  transition: all 0.2s; cursor: pointer;
-}
-.xhs-account-dot.online {
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34,197,94,0.5);
-  animation: xhs-pulse 2s infinite;
-}
-.xhs-account-dot.offline {
-  background: rgba(255,255,255,0.2);
+.xhs-sidebar-item:hover { color: var(--text-primary); }
+.xhs-sidebar-item.active { color: var(--text-primary); }
+.xhs-account-avatar {
+  width: 24px; height: 24px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+  color: #fff; opacity: 0.8;
 }
 .xhs-account-name {
-  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.xhs-account-meta {
+  font-size: 10px; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Action icons — show on hover */
+.xhs-sidebar-item .xhs-action-icons {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  opacity: 0; transition: opacity 0.15s;
+  display: flex; gap: 2px; flex-shrink: 0; color: var(--text-muted);
+  background: var(--bg-sidebar); padding-left: 4px;
+}
+.xhs-sidebar-item:hover .xhs-action-icons { opacity: 1; }
+.xhs-action-icons span {
+  cursor: pointer; padding: 3px; border-radius: 3px;
+  display: flex; align-items: center; transition: background 0.15s;
+}
+.xhs-action-icons span:hover { background: var(--bg-card-hover); }
 
-/* Inline rename */
+/* Inline rename (spans full width) */
+.xhs-sidebar-item.renaming {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0;
+}
 .xhs-rename-input {
-  width: 100%; padding: 2px 6px; border-radius: 4px;
+  flex: 1; padding: 3px 6px; border-radius: 4px;
   border: 1px solid var(--accent);
   background: var(--bg-primary);
   color: var(--text-primary); font-size: 12px;
   outline: none; font-family: inherit;
 }
-.xhs-action-icons {
-  display: flex; gap: 2px; flex-shrink: 0; color: var(--text-muted);
-}
-.xhs-action-icons span {
-  cursor: pointer; padding: 2px; border-radius: 3px;
-  display: flex; align-items: center; transition: background 0.15s;
-}
-.xhs-action-icons span:hover { background: var(--bg-card-hover); }
 
 /* Sidebar footer */
 .xhs-sidebar-footer {
-  padding: 8px 10px; border-top: 1px solid var(--border-color);
-  display: flex; flex-direction: column; gap: 4px; margin-top: auto;
+  padding: 8px 12px; border-top: 1px solid var(--border-color);
+  display: flex; gap: 6px; margin-top: auto;
 }
 .xhs-manage-btn {
-  display: flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 6px 10px; border-radius: 6px;
-  background: transparent; border: 1px dashed var(--border-color);
-  color: var(--text-muted); font-size: 11px;
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 7px 0; border-radius: 6px;
+  background: transparent; border: 1px solid var(--border-color);
+  color: var(--text-secondary); font-size: 11px;
   cursor: pointer; transition: all 0.15s;
   font-family: inherit;
 }
-.xhs-manage-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); border-color: var(--text-muted); }
+.xhs-manage-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
 .xhs-manage-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* XHS Main Area */
