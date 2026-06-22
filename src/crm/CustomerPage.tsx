@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, X, Plus, GripVertical } from 'lucide-react'
+import { Search, X, Plus, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
 import { pinyin } from 'pinyin-pro'
 import Fuse from 'fuse.js'
 import type { SharedProps, Customer, EnrichedCustomer } from './types'
@@ -11,6 +11,8 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
   const [dragId, setDragId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 排序：默认按更新时间降序（最新在上）
+  const [timeDesc, setTimeDesc] = useState(true)
 
   const customers = data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead').map(enrichCust)
 
@@ -30,8 +32,10 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       list = [...list, ...pinyinMatches]
     }
     if (filterNoteId) list = list.filter(c => c.sourceNoteId === filterNoteId)
-    return list.sort((a, b) => pinyin(a.name).localeCompare(pinyin(b.name)))
-  }, [customers, search, filterNoteId, fuse])
+    return list.sort((a, b) => timeDesc
+      ? b.updatedAt.localeCompare(a.updatedAt)
+      : a.updatedAt.localeCompare(b.updatedAt))
+  }, [customers, search, filterNoteId, fuse, timeDesc])
 
   const kanbanGroups = useMemo(() => {
     const m: Record<string, EnrichedCustomer[]> = {}
@@ -84,13 +88,22 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
               <tr>
                 {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
                 <th style={{ width: 180 }}>客户</th>
-                <th style={{ width: 130 }}>来源</th>
+                <th>来源</th>
                 <th style={{ width: 80 }}>阶段</th>
                 <th style={{ width: 70 }}>户型</th>
                 <th style={{ width: 70 }}>城市</th>
                 <th style={{ width: 100 }}>归属账号</th>
                 <th style={{ width: 100 }}>跟进</th>
-                <th style={{ width: 90 }}>更新时间</th>
+                <th style={{ width: 110 }}>
+                  <button
+                    className={`crm-th-sort active`}
+                    onClick={() => setTimeDesc(v => !v)}
+                    title={timeDesc ? '当前降序，点击切换升序' : '当前升序，点击切换降序'}
+                  >
+                    更新时间
+                    {timeDesc ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
+                  </button>
+                </th>
                 <th style={{ width: 70 }}>操作</th>
               </tr>
             </thead>
