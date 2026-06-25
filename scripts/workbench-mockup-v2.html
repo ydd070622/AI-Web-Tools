@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台改版 Mockup</title>
+<style>
+  :root {
+    --bg: #0a0a0f; --bg2: #12121a; --bg3: #1a1a25;
+    --border: rgba(255,255,255,0.07); --text: #e4e4e9;
+    --text2: rgba(255,255,255,0.45); --text3: rgba(255,255,255,0.25);
+    --accent: #6366f1; --green: #22c55e; --red: #ef4444; --amber: #f59e0b;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 20px; display: flex; justify-content: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; width: 100%; }
+
+  /* === Top Stats === */
+  .stats { display: flex; gap: 12px; margin-bottom: 14px; }
+  .stat-card {
+    flex: 1; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+    position: relative; overflow: hidden;
+  }
+  .stat-label { font-size: 12px; color: var(--text2); font-weight: 600; margin-bottom: 6px; }
+  .stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .stat-card.blue .stat-value { color: #818cf8; }
+  .stat-card.red .stat-value { color: #f87171; }
+  .stat-card.green .stat-value { color: #4ade80; }
+
+  /* === Main 2-column === */
+  .main { display: flex; gap: 14px; }
+  .col-left { flex: 1.5; min-width: 0; }
+  .col-right { flex: 1; min-width: 0; }
+
+  /* === Card === */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .card-hd {
+    display: flex; align-items: center; gap: 7px;
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 700;
+  }
+  .card-badge {
+    font-size: 10px; padding: 1px 7px; border-radius: 8px;
+    background: var(--bg3); color: var(--text3);
+    margin-left: auto;
+  }
+  .card-body { padding: 0; }
+
+  /* === Follow-up row === */
+  .fu-label {
+    padding: 8px 14px 4px; font-size: 11px; font-weight: 700;
+    color: var(--text2);
+  }
+  .fu-label.urgent { color: #f87171; }
+  .fu-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; cursor: pointer;
+    transition: background 0.1s; border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .fu-row:hover { background: var(--bg3); }
+  .fu-av {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff; font-weight: 700; flex-shrink: 0;
+  }
+  .fu-body { flex: 1; min-width: 0; }
+  .fu-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .fu-note {
+    font-size: 12px; color: var(--text2); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fu-date {
+    font-size: 11px; color: var(--text3); flex-shrink: 0;
+    margin-right: 4px; min-width: 55px; text-align: right;
+  }
+  .fu-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    font-weight: 600; flex-shrink: 0;
+  }
+  .fu-tag.overdue { background: rgba(239,68,68,0.15); color: #f87171; }
+  .fu-tag.today { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .fu-tag.soon { background: rgba(99,102,241,0.12); color: #818cf8; }
+  .fu-done {
+    padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border);
+    background: transparent; color: var(--text3); font-size: 11px;
+    cursor: pointer; flex-shrink: 0; font-family: inherit;
+    transition: all 0.15s;
+  }
+  .fu-done:hover { background: rgba(34,197,94,0.12); color: #4ade80; border-color: rgba(34,197,94,0.3); }
+
+  /* === Right column cards === */
+  .mini-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+  .mm {
+    background: var(--bg3); border-radius: var(--radius-sm);
+    padding: 12px; text-align: center;
+  }
+  .mm-value { font-size: 20px; font-weight: 800; }
+  .mm-label { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .mm.blue .mm-value { color: #818cf8; }
+  .mm.green .mm-value { color: #4ade80; }
+
+  .jumps { display: flex; flex-direction: column; gap: 1px; padding: 4px 0; }
+  .jump {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 14px; border: none; background: transparent;
+    color: var(--text2); font-size: 12px; cursor: pointer;
+    font-family: inherit; transition: background 0.1s;
+  }
+  .jump:hover { background: var(--bg3); }
+  .jump-badge {
+    margin-left: auto; font-size: 10px; padding: 1px 6px;
+    border-radius: 6px; background: var(--bg3); color: var(--text3);
+  }
+
+  .rev-row {
+    display: flex; justify-content: space-between; padding: 8px 14px;
+    font-size: 12px;
+  }
+  .rev-label { color: var(--text2); }
+  .rev-value { font-weight: 600; }
+
+  .empty { padding: 30px; text-align: center; color: var(--text3); font-size: 13px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; color: var(--text2);
+    padding: 12px 14px 4px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Top Stats (3 cards) ===== -->
+  <div class="stats">
+    <div class="stat-card blue">
+      <div class="stat-label">全部客户</div>
+      <div class="stat-value">9</div>
+      <div class="stat-sub">非成交阶段的所有客户</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">今日待跟进</div>
+      <div class="stat-value">2</div>
+      <div class="stat-sub">逾期 <span style="color:#f87171">1 人</span> · 7天内 <span style="color:#fbbf24">3 人</span></div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">已成交</div>
+      <div class="stat-value">2</div>
+      <div class="stat-sub">合同总额 ¥70,000 · 已回款 ¥19,600</div>
+    </div>
+  </div>
+
+  <!-- ===== Main 2-column ===== -->
+  <div class="main">
+
+    <!-- LEFT: Follow-up Timeline -->
+    <div class="col-left">
+      <div class="card">
+        <div class="card-hd">
+          📋 跟进时间线<span class="card-badge">4 人待跟进</span>
+        </div>
+        <div class="card-body">
+
+          <!-- Today/Overdue -->
+          <div class="fu-label urgent">⚠️ 今天 / 已逾期 · 2 人</div>
+
+          <!-- Row 1: overdue -->
+          <div class="fu-row">
+            <div class="fu-av" style="background:linear-gradient(135deg,#6366f1,#818cf8)">张</div>
+            <div class="fu-body">
+              <div class="fu-name">张女士</div>
+              <div class="fu-note">客户说6.19才有空</div>
+            </div>
+            <span class="fu-date">6月19日</span>
+            <span class="fu-tag overdue">逾期7天</span>
+            <button class="fu-done">完成</button>
+          </div>
+
+          <!-- Row 2: today -->
+          <div class="fu-row">
+            <div class="fu-av" style="background:linear-gradient(135deg,#ec4899,#f472b6)">吴</div>
+            <div class="fu-body">
+              <div class="fu-name">吴女士</div>
+              <div class="fu-note">今天联系确认方案</div>
+            </div>
+            <span class="fu-date">6月26日</span>
+            <span class="fu-tag today">今天</span>
+            <button class="fu-done">完成</button>
+          </div>
+
+          <!-- Upcoming -->
+          <div class="fu-label">📅 即将跟进 · 2 人</div>
+
+          <!-- Row 3: upcoming -->
+          <div class="fu-row">
+            <div class="fu-av" style="background:linear-gradient(135deg,#22c55e,#4ade80)">陈</div>
+            <div class="fu-body">
+              <div class="fu-name">陈女士</div>
+              <div class="fu-note">6.21出差回来再聊</div>
+            </div>
+            <span class="fu-date">6月29日</span>
+            <span class="fu-tag soon">3天后</span>
+            <button class="fu-done">完成</button>
+          </div>
+
+          <!-- Row 4: upcoming no note -->
+          <div class="fu-row">
+            <div class="fu-av" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)">刘</div>
+            <div class="fu-body">
+              <div class="fu-name">刘女士</div>
+              <div class="fu-note" style="color:var(--text3);font-style:italic">暂无跟进备注</div>
+            </div>
+            <span class="fu-date">7月1日</span>
+            <span class="fu-tag soon">5天后</span>
+            <button class="fu-done">完成</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Quick actions + Revenue -->
+    <div class="col-right">
+
+      <!-- Quick Actions -->
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-hd">⚡ 快捷操作</div>
+        <div class="jumps">
+          <button class="jump">👤 新增客户</button>
+          <button class="jump">✏️ 新增笔记<span class="jump-badge">2 草稿</span></button>
+          <button class="jump">📄 合同管理<span class="jump-badge">2 份</span></button>
+        </div>
+      </div>
+
+      <!-- Revenue Overview -->
+      <div class="card">
+        <div class="card-hd">💰 成交概览</div>
+        <div class="card-body">
+          <div class="rev-row"><span class="rev-label">合同总额</span><span class="rev-value">¥70,000</span></div>
+          <div class="rev-row"><span class="rev-label">已回款</span><span class="rev-value" style="color:#4ade80">¥19,600</span></div>
+          <div class="rev-row"><span class="rev-label">均单</span><span class="rev-value" style="color:var(--text2)">3.5万</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

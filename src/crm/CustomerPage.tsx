@@ -11,13 +11,13 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
   const [dragId, setDragId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // 排序：默认按更新时间降序（最新在上）
+  // 排序：默认按跟进时间降序（最近跟进在上）
   const [timeDesc, setTimeDesc] = useState(true)
 
-  const customers = data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead').map(enrichCust)
+  const customers = data.customers.filter(c => c.stage !== 'closed').map(enrichCust)
 
   const fuse = useMemo(() => new Fuse(customers, {
-    keys: ['name', 'phone', 'wechat', 'houseType', 'city', 'style', 'followUpNote', 'notes'],
+    keys: ['name', 'city', 'stylePreference', 'style', 'followUpNote'],
     threshold: 0.4,
   }), [customers])
 
@@ -32,9 +32,11 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       list = [...list, ...pinyinMatches]
     }
     if (filterNoteId) list = list.filter(c => c.sourceNoteId === filterNoteId)
-    return list.sort((a, b) => timeDesc
-      ? b.updatedAt.localeCompare(a.updatedAt)
-      : a.updatedAt.localeCompare(b.updatedAt))
+    return list.sort((a, b) => {
+      const da = a.followUpDate || '0000-00-00'
+      const db = b.followUpDate || '0000-00-00'
+      return timeDesc ? db.localeCompare(da) : da.localeCompare(db)
+    })
   }, [customers, search, filterNoteId, fuse, timeDesc])
 
   const kanbanGroups = useMemo(() => {
@@ -87,20 +89,19 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
             <thead>
               <tr>
                 {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
-                <th style={{ width: 180 }}>客户</th>
-                <th>来源</th>
-                <th style={{ width: 80 }}>阶段</th>
-                <th style={{ width: 70 }}>户型</th>
-                <th style={{ width: 70 }}>城市</th>
-                <th style={{ width: 100 }}>归属账号</th>
-                <th style={{ width: 100 }}>跟进</th>
+                <th style={{ width: 160 }}>客户</th>
+                <th style={{ width: 80 }}>日期</th>
+                <th style={{ width: 70 }}>地区</th>
+                <th style={{ width: 80 }}>喜欢风格</th>
+                <th style={{ width: 90 }}>客户归属</th>
+                <th style={{ width: 90 }}>跟进</th>
                 <th style={{ width: 110 }}>
                   <button
                     className={`crm-th-sort active`}
                     onClick={() => setTimeDesc(v => !v)}
-                    title={timeDesc ? '当前降序，点击切换升序' : '当前升序，点击切换降序'}
+                    title={timeDesc ? '按跟进时间降序，点击切换升序' : '按跟进时间升序，点击切换降序'}
                   >
-                    更新时间
+                    跟进时间
                     {timeDesc ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
                   </button>
                 </th>
@@ -109,7 +110,6 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
             </thead>
             <tbody>
               {filtered.map(c => {
-                const stage = STAGES.find(s => s.id === c.stage)
                 const fu = fuDisplay(c.followUpDate || null)
                 const [g1, g2] = avatarGrad(c.name)
                 const toggleSel = (id: string) => { const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedIds(next) }
@@ -121,17 +121,16 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                         <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>
                         <div>
                           <div>{c.name}</div>
-                          <div className="crm-muted" style={{ fontSize: 10, lineHeight: 1.3 }}>{c.wechat || <span style={{ opacity: 0.4 }}>无微信名</span>}</div>
+                          {c.wechat && <div className="crm-muted" style={{ fontSize: 10, lineHeight: 1.3 }}>{c.wechat}</div>}
                         </div>
                       </div>
                     </td>
-                    <td><span className="crm-source-link" title={c.sourceLabel}>{c.sourceIcon} {c.sourceLabel}</span></td>
-                    <td><span className={`crm-tag stage-${c.stage}`}><span className="crm-dot-sm" style={{ background: stage?.dotColor }} />{stage?.label}</span></td>
-                    <td><span className="crm-info-text">{c.houseType || <span className="crm-muted">未填</span>}</span></td>
-                    <td><span className="crm-info-text">{c.city || <span className="crm-muted">未填</span>}</span></td>
-                    <td><span className="crm-info-text">{c.style || <span className="crm-muted">未填</span>}</span></td>
+                    <td><span className="crm-muted">{fmtDate(c.recordDate) || '—'}</span></td>
+                    <td><span className="crm-info-text">{c.city || <span className="crm-muted">—</span>}</span></td>
+                    <td>{c.stylePreference ? <span className="crm-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>{c.stylePreference}</span> : <span className="crm-muted">—</span>}</td>
+                    <td>{c.style ? <span className="crm-tag" style={{ background: (TAG_COLORS[c.style] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.style] || {}).text || 'var(--text-secondary)' }}>{c.style}</span> : <span className="crm-muted">—</span>}</td>
                     <td>{fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">—</span>}</td>
-                    <td><span className="crm-muted">{fmtDate(c.updatedAt)}</span></td>
+                    <td><span className="crm-muted">{c.followUpDate ? fmtDate(c.followUpDate) : '—'}</span></td>
                     <td>
                       <button className="crm-btn-ghost-xs" onClick={e => { e.stopPropagation(); setEditingCustomer(c) }}>详情</button>
                     </td>
@@ -167,17 +166,16 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                         <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${avatarGrad(c.name)[0]},${avatarGrad(c.name)[1]})` }}>{c.name[0]}</div>
                         <div>
                           <div className="crm-card-name">{c.name}</div>
-                          <div className="crm-card-source" title={c.sourceLabel}>{c.sourceIcon} {c.sourceLabel}</div>
-                          {c.wechat && <div className="crm-muted" style={{ fontSize: 9, lineHeight: 1.2, marginTop: 1 }}>{c.wechat}</div>}
+                          {c.city && <div className="crm-muted" style={{ fontSize: 10 }}>{c.city}</div>}
                         </div>
                       </div>
                       <div className="crm-card-tags">
-                        {c.houseType && <span className="crm-card-tag tag-blue">{c.houseType}</span>}
-                        {c.city && <span className="crm-card-tag tag-yellow">{c.city}</span>}
+                        {c.stylePreference && <span className="crm-card-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>{c.stylePreference}</span>}
                         {c.style && <span className="crm-card-tag" style={{ background: (TAG_COLORS[c.style] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.style] || {}).text || 'var(--text-secondary)' }}>{c.style}</span>}
+                        {c.wechat && <span className="crm-card-tag tag-blue">{c.wechat}</span>}
                       </div>
                       <div className="crm-card-footer">
-                        {(() => { const fu = fuDisplay(c.followUpDate); return fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">{fmtDate(c.updatedAt)}更新</span> })()}
+                        {(() => { const fu = fuDisplay(c.followUpDate); return fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">{c.followUpDate ? fmtDate(c.followUpDate) : '待定'}</span> })()}
                       </div>
                     </div>
                   ))}

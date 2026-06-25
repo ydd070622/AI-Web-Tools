@@ -6,7 +6,6 @@ import { today as todayStr, daysDiff } from '../crm/helpers'
 import { createDefaultData } from '../crm/defaultData'
 import Workbench from '../crm/Workbench'
 import CustomerPage from '../crm/CustomerPage'
-import LeadPoolPage from '../crm/LeadPoolPage'
 import ContractPage from '../crm/ContractPage'
 import DashboardPage from '../crm/DashboardPage'
 import NotesPage from '../crm/NotesPage'
@@ -53,7 +52,7 @@ export default function CRMPanel() {
               followUpHistory = []
             }
           }
-          return { ...c, ...contractBase, followUpHistory }
+          return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', ...contractBase, followUpHistory }
         }),
       })
       if (window.electronAPI) {
@@ -105,7 +104,8 @@ export default function CRMPanel() {
       id: 'c' + Date.now(), name: cust.name || '', phone: cust.phone || '', wechat: cust.wechat || '',
       source: cust.source || 'xiaohongshu', sourceNoteId: cust.sourceNoteId || null,
       stage: cust.stage || 'lead', houseType: cust.houseType || '', city: cust.city || '',
-      style: cust.style || '', followUpDate: cust.followUpDate || '', followUpNote: cust.followUpNote || '',
+      style: cust.style || '', recordDate: cust.recordDate || ts, stylePreference: cust.stylePreference || '',
+      followUpDate: cust.followUpDate || '', followUpNote: cust.followUpNote || '',
       dealAmount: cust.dealAmount ?? null, notes: cust.notes || '', createdAt: ts, updatedAt: ts,
       projectId: cust.projectId,
       contractStatus: cust.contractStatus,
@@ -170,19 +170,17 @@ export default function CRMPanel() {
   const todayCount = followUps.filter(c => c.diff <= 0).length
   const overdueCount = followUps.filter(c => c.diff < 0).length
   const closedCusts = data.customers.filter(c => c.stage === 'closed')
-  const leadCount = data.customers.filter(c => c.stage === 'lead').length
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, deleteNotes, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, deleteNotes, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
     { ...TABS[1], badge: null },
-    { ...TABS[2], badge: leadCount > 0 ? { count: leadCount, cls: 'info' } : null },
-    { ...TABS[3], badge: closedCusts.length > 0 ? { count: closedCusts.length, cls: 'success' } : null },
+    { ...TABS[2], badge: closedCusts.length > 0 ? { count: closedCusts.length, cls: 'success' } : null },
+    { ...TABS[3], badge: null },
     { ...TABS[4], badge: null },
-    { ...TABS[5], badge: null },
   ]
 
   return (
@@ -210,7 +208,6 @@ export default function CRMPanel() {
         <div className="crm-content">
           {tab === 'workbench' && <Workbench {...sharedProps} />}
           {tab === 'customers' && <CustomerPage {...sharedProps} />}
-          {tab === 'leadpool' && <LeadPoolPage {...sharedProps} />}
           {tab === 'contracts' && <ContractPage {...sharedProps} />}
           {tab === 'dashboard' && <DashboardPage {...sharedProps} />}
           {tab === 'notes' && <NotesPage {...sharedProps} />}

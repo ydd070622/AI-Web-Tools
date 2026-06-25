@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { X } from 'lucide-react'
 import type { Note, Customer, FollowUp } from './types'
-import { STAGES, SOURCES } from './constants'
-import { fmtDate } from './helpers'
+import { STYLES, ACCOUNTS } from './constants'
+import { fmtDate, today } from './helpers'
 
 export default function CustomerModal({ customer, notes, onSave, onDelete, onClose }: {
   customer: Partial<Customer>
@@ -13,33 +13,40 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
   onClose: () => void
 }) {
   const [form, setForm] = useState({
-    name: customer.name || '', phone: customer.phone || '', wechat: customer.wechat || '',
-    source: customer.source || 'xiaohongshu', sourceNoteId: customer.sourceNoteId || '',
-    stage: customer.stage || 'lead', houseType: customer.houseType || '',
-    city: customer.city || '', style: customer.style || '',
-    followUpDate: customer.followUpDate || '', followUpNote: customer.followUpNote || '',
-    notes: customer.notes || '',
+    recordDate: customer.recordDate || today(),
+    name: customer.name || '',
+    city: customer.city || '',
+    stylePreference: customer.stylePreference || '',
+    style: customer.style || '',
+    sourceNoteId: customer.sourceNoteId || '',
+    followUpDate: customer.followUpDate || '',
+    followUpNote: customer.followUpNote || '',
   })
   const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
 
   const history = customer.followUpHistory ?? []
-  const reversedHistory = [...history].reverse()  // 倒序，最新在上
+  const reversedHistory = [...history].reverse()
 
   const handleSave = () => {
     if (!form.name.trim()) return
-    const upd: Partial<Customer> & { id?: string } = { id: customer.id, ...form }
+    const upd: Partial<Customer> & { id?: string } = {
+      id: customer.id,
+      ...form,
+      // 新客户默认阶段为 lead，已有客户保持原阶段。选了笔记自动设来源为小红书
+      source: customer.id ? (customer.source || 'xiaohongshu') : (form.sourceNoteId ? 'xiaohongshu' as const : 'other' as const),
+      sourceNoteId: form.sourceNoteId || null,
+      ...(customer.id ? {} : { stage: 'wechat' as const }),
+    }
 
-    // 保存去重：编辑已有客户且跟进备注或沟通记录发生变化时，追加一条历史
+    // 跟进备注有变化时追加跟进历史
     if (customer.id) {
       const fuChanged = form.followUpNote.trim() && form.followUpNote !== (customer.followUpNote || '')
-      const notesChanged = form.notes.trim() && form.notes !== (customer.notes || '')
-      if (fuChanged || notesChanged) {
+      if (fuChanged) {
         const todayStr = new Date().toISOString().split('T')[0]
-        const content = fuChanged ? form.followUpNote : form.notes
         const newEntry: FollowUp = {
           id: 'fu_' + Date.now(),
           date: todayStr,
-          content,
+          content: form.followUpNote,
           nextDate: form.followUpDate || undefined,
         }
         upd.followUpHistory = [...history, newEntry]
@@ -58,69 +65,74 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
           <button className="crm-modal-close" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="crm-modal-body">
+
+          {/* Row 1: 日期 + 业主姓名 + 来源笔记 */}
           <div className="crm-form-row">
-            <div className="crm-form-group" style={{ flex: 2 }}>
-              <label className="crm-form-label">姓名 *</label>
-              <input className="crm-form-input" value={form.name} onChange={e => h('name', e.target.value)} placeholder="客户姓名/称呼" />
+            <div className="crm-form-group" style={{ maxWidth: 140 }}>
+              <label className="crm-form-label">日期</label>
+              <input type="date" className="crm-form-input" value={form.recordDate} onChange={e => h('recordDate', e.target.value)} />
             </div>
-            <div className="crm-form-group">
-              <label className="crm-form-label">阶段</label>
-              <select className="crm-form-input" value={form.stage} onChange={e => h('stage', e.target.value)}>
-                {STAGES.map(s => <option key={s.id} value={s.id}>{s.icon} {s.label}</option>)}
+            <div className="crm-form-group" style={{ flex: 1.3 }}>
+              <label className="crm-form-label">业主姓名 *</label>
+              <input className="crm-form-input" value={form.name} onChange={e => h('name', e.target.value)} placeholder="输入客户姓名" />
+            </div>
+            <div className="crm-form-group" style={{ flex: 1.3 }}>
+              <label className="crm-form-label">来源笔记</label>
+              <select className="crm-form-input" value={form.sourceNoteId} onChange={e => h('sourceNoteId', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                {notes.map(n => <option key={n.id} value={n.id}>{n.title.slice(0, 24)}</option>)}
               </select>
             </div>
           </div>
-          <div className="crm-form-row">
-            <div className="crm-form-group"><label className="crm-form-label">手机号</label><input className="crm-form-input" value={form.phone} onChange={e => h('phone', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">微信名</label><input className="crm-form-input" value={form.wechat} onChange={e => h('wechat', e.target.value)} placeholder="如：陈小姐-0612-奶油风" /></div>
-          </div>
+
+          {/* Row 2: 地区 + 喜欢风格 */}
           <div className="crm-form-row">
             <div className="crm-form-group">
-              <label className="crm-form-label">来源渠道</label>
-              <select className="crm-form-input" value={form.source} onChange={e => h('source', e.target.value)}>
-                {SOURCES.map(s => <option key={s.id} value={s.id}>{s.icon} {s.label}</option>)}
+              <label className="crm-form-label">地区</label>
+              <input className="crm-form-input" value={form.city} onChange={e => h('city', e.target.value)} placeholder="如：深圳、广州" />
+            </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">喜欢风格</label>
+              <select className="crm-form-input" value={form.stylePreference} onChange={e => h('stylePreference', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                {STYLES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
-            {form.source === 'xiaohongshu' && (
-              <div className="crm-form-group">
-                <label className="crm-form-label">来源笔记</label>
-                <select className="crm-form-input" value={form.sourceNoteId || ''} onChange={e => h('sourceNoteId', e.target.value)}>
-                  <option value="">-- 选择 --</option>
-                  {notes.map(n => <option key={n.id} value={n.id}>{n.title.slice(0, 20)}</option>)}
-                </select>
-              </div>
-            )}
           </div>
+
+          {/* Row 3: 客户归属 + 下次跟进日期 */}
           <div className="crm-form-row">
-            <div className="crm-form-group"><label className="crm-form-label">户型</label><input className="crm-form-input" value={form.houseType} onChange={e => h('houseType', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">城市</label><input className="crm-form-input" value={form.city} onChange={e => h('city', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">归属账号</label>
+            <div className="crm-form-group">
+              <label className="crm-form-label">客户归属</label>
               <select className="crm-form-input" value={form.style} onChange={e => h('style', e.target.value)}>
                 <option value="">-- 选择 --</option>
-                <option value="守一意式">守一意式</option>
-                <option value="守中意式">守中意式</option>
-                <option value="守中法式">守中法式</option>
+                {ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">下次跟进日期</label>
+              <input type="date" className="crm-form-input" value={form.followUpDate} onChange={e => h('followUpDate', e.target.value)} />
+            </div>
           </div>
-          <div className="crm-form-row">
-            <div className="crm-form-group"><label className="crm-form-label">下次跟进日期</label><input type="date" className="crm-form-input" value={form.followUpDate} onChange={e => h('followUpDate', e.target.value)} /></div>
-            <div className="crm-form-group"><label className="crm-form-label">跟进备注 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>(改动会记录到历史)</span></label><input className="crm-form-input" value={form.followUpNote} onChange={e => h('followUpNote', e.target.value)} placeholder="客户说了什么" /></div>
+
+          {/* Divider + 跟进情况 */}
+          <div className="crm-section-title" style={{ marginTop: 4 }}>
+            跟进情况
+            {history.length > 0 && <span className="crm-section-count">{history.length} 条</span>}
           </div>
           <div className="crm-form-group">
-            <label className="crm-form-label">沟通记录</label>
-            <textarea className="crm-form-textarea" value={form.notes} onChange={e => h('notes', e.target.value)} rows={3} />
+            <textarea
+              className="crm-form-textarea"
+              value={form.followUpNote}
+              onChange={e => h('followUpNote', e.target.value)}
+              rows={5}
+              placeholder="记录本次沟通内容、客户反馈、后续计划等..."
+            />
           </div>
 
           {/* 跟进历史时间线 */}
-          <div className="crm-section-title" style={{ marginTop: 8 }}>
-            📋 跟进历史
-            {history.length > 0 && <span className="crm-section-count">{history.length} 条</span>}
-          </div>
-          {history.length === 0 ? (
-            <div className="crm-fu-history-empty">暂无跟进记录</div>
-          ) : (
-            <div className="crm-fu-history">
+          {history.length > 0 && (
+            <div className="crm-fu-history" style={{ marginTop: 0 }}>
               {reversedHistory.map(fu => (
                 <div key={fu.id} className="crm-fu-history-item">
                   <div className="crm-fu-history-dot" />
@@ -132,12 +144,13 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
               ))}
             </div>
           )}
+
         </div>
         <div className="crm-modal-footer">
           {onDelete && <button className="crm-btn-ghost crm-btn-danger" onClick={onDelete}>删除</button>}
           <div style={{ flex: 1 }} />
           <button className="crm-btn-ghost" onClick={onClose}>取消</button>
-          <button className="crm-btn-primary" onClick={handleSave}>保存</button>
+          <button className="crm-btn-primary" onClick={handleSave}>保存客户</button>
         </div>
       </div>
     </div>

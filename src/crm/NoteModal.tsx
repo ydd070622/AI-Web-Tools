@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { X } from 'lucide-react'
 import type { Note } from './types'
+import { ACCOUNTS } from './constants'
 
 export default function NoteModal({ note, onSave, onClose }: {
   note: Partial<Note>
@@ -12,6 +13,7 @@ export default function NoteModal({ note, onSave, onClose }: {
     title: note.title || '', publishDate: note.publishDate || '',
     status: 'published' as Note['status'],
     style: note.style || '',
+    account: note.account || '',
   })
   const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
 
@@ -37,9 +39,16 @@ export default function NoteModal({ note, onSave, onClose }: {
               </select>
             </div>
             <div className="crm-form-group">
-              <label className="crm-form-label">发布日期</label>
-              <input type="date" className="crm-form-input" value={form.publishDate} onChange={e => h('publishDate', e.target.value)} />
+              <label className="crm-form-label">归属账号</label>
+              <select className="crm-form-input" value={form.account} onChange={e => h('account', e.target.value)}>
+                <option value="">-- 选择 --</option>
+                {ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
             </div>
+          </div>
+          <div className="crm-form-group">
+            <label className="crm-form-label">发布日期</label>
+            <input type="date" className="crm-form-input" value={form.publishDate} onChange={e => h('publishDate', e.target.value)} />
           </div>
         </div>
         <div className="crm-modal-footer">

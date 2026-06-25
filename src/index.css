@@ -3051,6 +3051,7 @@ textarea.input-base {
 .crm-form-row { display: flex; gap: 10px; }
 .crm-form-row > * { flex: 1; }
 .crm-form-input[type="date"] { color-scheme: dark; }
+.theme-light .crm-form-input[type="date"] { color-scheme: light; }
 
 /* CRM Customer Link Info */
 .crm-cust-link-info {
@@ -3356,6 +3357,17 @@ textarea.input-base {
 .wb-fu-row:hover { background: var(--bg-tertiary, #232b35); }
 .wb-fu-row:not(:last-child) { border-bottom: 1px solid rgba(45,54,64,0.5); }
 .wb-fu-row.wb-fu-open { background: var(--bg-tertiary, #232b35); }
+.wb-fu-done-btn {
+  padding: 3px 10px; border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent; color: var(--text-muted);
+  font-size: 11px; cursor: pointer; flex-shrink: 0;
+  font-family: inherit; transition: all 0.15s;
+  margin-left: 6px;
+}
+.wb-fu-done-btn:hover {
+  background: rgba(34,197,94,0.12); color: #4ade80; border-color: rgba(34,197,94,0.3);
+}
 .wb-fu-av {
   width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -3465,6 +3477,120 @@ textarea.input-base {
 
 /* ===== WB Empty ===== */
 .wb-empty { text-align: center; padding: 24px; color: var(--text-muted); font-size: 12px; }
+
+/* ===== WB V3 — 跟进中心 ===== */
+.wb-v3 { display: flex; flex-direction: column; gap: 14px; height: 100%; overflow-y: auto; }
+
+/* Metric cards */
+.wb-v3-metrics { display: flex; gap: 10px; }
+.wb-v3-metric {
+  flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+}
+.wb-v3-metric-icon {
+  width: 38px; height: 38px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.wb-v3-metric-value { font-size: 22px; font-weight: 800; line-height: 1; color: var(--text-primary); }
+.wb-v3-metric-label { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+/* Follow-up card */
+.wb-v3-card {
+  flex: 1; background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: 10px; overflow-y: auto;
+}
+.wb-v3-card-body { padding: 4px 0; }
+
+/* Section header with badge */
+.wb-v3-section {
+  display: flex; align-items: center; gap: 10px; padding: 8px 14px 4px;
+}
+.wb-v3-section-badge {
+  padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  flex-shrink: 0;
+}
+.wb-v3-section-badge.overdue { background: rgba(239,68,68,0.12); color: #f87171; }
+.wb-v3-section-badge.today { background: rgba(245,158,11,0.12); color: #fbbf24; }
+.wb-v3-section-badge.upcoming { background: rgba(99,102,241,0.1); color: #818cf8; }
+.wb-v3-section-line { flex: 1; height: 1px; background: var(--border-color); }
+
+/* Follow-up item card */
+.wb-v3-fu-card {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 14px; margin: 4px 8px; border-radius: 8px;
+  background: var(--bg-primary); border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.wb-v3-fu-card:hover { border-color: var(--border-color); }
+.wb-v3-fu-card.urgent { border-left: 3px solid #ef4444; }
+.wb-v3-fu-card.warn { border-left: 3px solid #f59e0b; }
+
+.wb-v3-fu-date {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 60px; flex-shrink: 0;
+}
+.wb-v3-fu-day { font-size: 26px; font-weight: 800; line-height: 1; }
+.wb-v3-fu-date.overdue .wb-v3-fu-day { color: #f87171; }
+.wb-v3-fu-date.today .wb-v3-fu-day { color: #fbbf24; }
+.wb-v3-fu-date.upcoming .wb-v3-fu-day { color: #818cf8; }
+.wb-v3-fu-month { font-size: 11px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; }
+
+.wb-v3-fu-body { flex: 1; min-width: 0; }
+.wb-v3-fu-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.wb-v3-fu-av {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; font-weight: 700; flex-shrink: 0;
+}
+.wb-v3-fu-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.wb-v3-fu-stage {
+  font-size: 10px; padding: 1px 7px; border-radius: 8px;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+}
+.wb-v3-fu-note {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+  padding-left: 34px;
+}
+.wb-v3-fu-note.empty { color: var(--text-muted); font-style: italic; }
+
+.wb-v3-fu-actions {
+  display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+}
+.wb-v3-fu-btn {
+  padding: 5px 14px; border-radius: 6px; border: none;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+  font-weight: 600; transition: all 0.15s; white-space: nowrap;
+}
+.wb-v3-fu-btn.done { background: rgba(34,197,94,0.12); color: #4ade80; }
+.wb-v3-fu-btn.done:hover { background: rgba(34,197,94,0.25); }
+.wb-v3-fu-btn.edit { background: var(--bg-tertiary); color: var(--text-secondary); }
+.wb-v3-fu-btn.edit:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+/* Inline expansion */
+.wb-v3-fu-inline {
+  margin: 0 8px 4px; padding: 12px 14px; border-radius: 8px;
+  background: var(--bg-tertiary); overflow: hidden;
+}
+.wb-v3-fu-inline-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.wb-v3-fu-inline-group { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.wb-v3-fu-inline-label { font-size: 11px; color: var(--text-secondary); font-weight: 600; }
+.wb-v3-fu-inline-input {
+  padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border-color);
+  background: var(--bg-primary); color: var(--text-primary); font-size: 12px;
+  font-family: inherit; outline: none;
+}
+.wb-v3-fu-inline-input:focus { border-color: var(--accent); }
+.wb-v3-fu-inline-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.wb-v3-empty { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+/* Light theme */
+.theme-light .wb-v3-metric { background: #fff; }
+.theme-light .wb-v3-card { background: #fff; }
+.theme-light .wb-v3-fu-card { background: #fafbfc; }
+.theme-light .wb-v3-fu-inline { background: #f5f6fa; }
+.theme-light .wb-v3-fu-inline-input { background: #fff; }
+.theme-light .wb-v3-fu-btn.edit { background: #f0f1f5; }
 
 /* ===== WB Responsive ===== */
 @media (max-width: 1000px) {

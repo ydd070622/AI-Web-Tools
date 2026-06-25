@@ -44,6 +44,7 @@ export default function NotesPage({ data, updateNote, deleteNotes, setEditingNot
               {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={notesWithLeads.length > 0 && notesWithLeads.every(n => selectedIds.has(n.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(notesWithLeads.map(n => n.id))); else setSelectedIds(new Set()) }} /></th>}
               <th>笔记标题</th>
               <th style={{ width: 80 }}>风格</th>
+              <th style={{ width: 90 }}>归属账号</th>
               <th style={{ width: 100 }}>发布时间</th>
               <th style={{ width: 70 }}>状态</th>
               <th style={{ width: 100, textAlign: 'center' }}>带来客户</th>
@@ -55,6 +56,7 @@ export default function NotesPage({ data, updateNote, deleteNotes, setEditingNot
                 {batchMode && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.has(n.id)} onChange={() => toggleSel(n.id)} /></td>}
                 <td className="crm-note-title">{n.title}</td>
                 <td className="crm-muted">{n.style || '—'}</td>
+                <td className="crm-muted">{n.account || '—'}</td>
                 <td className="crm-muted">{n.publishDate ? fmtDate(n.publishDate) : '—'}</td>
                 <td><span className="crm-tag stage-closed" style={{ fontSize: 11, padding: '2px 8px' }}>已发布</span></td>
                 <td style={{ textAlign: 'center' }}>

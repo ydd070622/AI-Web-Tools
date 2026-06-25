@@ -27,6 +27,7 @@ export interface Customer {
   source: 'xiaohongshu' | 'referral' | 'other'; sourceNoteId: string | null
   stage: 'lead' | 'wechat' | 'communicating' | 'followup' | 'closed'
   houseType: string; city: string; style: string
+  recordDate: string; stylePreference: string
   followUpDate: string; followUpNote: string
   dealAmount: number | null; notes: string
   createdAt: string; updatedAt: string
