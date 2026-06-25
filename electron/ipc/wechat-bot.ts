@@ -34,6 +34,7 @@ let session: BotSession | null = null
 let polling = false
 let getUpdatesBuf = ''
 let reconnectAttempts = 0
+let lastWxMsg: { userId: string; contextToken: string } | null = null
 const messageListeners: Array<(msg: WxMessage) => void> = []
 const sessionPath = path.join(app.getPath('userData'), 'wx-clawbot-session.json')
 
@@ -153,6 +154,7 @@ async function pollMessages(): Promise<void> {
         msgId: msg.msg_id || '',
         timestamp: msg.create_time_ms || Date.now(),
       }
+      lastWxMsg = { userId: wxMsg.userId, contextToken: wxMsg.contextToken }
       for (const l of messageListeners) { try { l(wxMsg) } catch {} }
       notifyRenderer('wx-bot-message', wxMsg)
     }
@@ -201,6 +203,11 @@ export function registerWeChatBot() {
   ipcMain.handle('wx-bot-check-qr', async (_e, qrcode: string) => await pollQR(qrcode))
   ipcMain.handle('wx-bot-send', async (_e, userId: string, text: string, ctxToken: string) => await sendMessage(userId, text, ctxToken))
   ipcMain.handle('wx-bot-status', () => ({ connected: !!session, botId: session?.ilinkBotId || '' }))
+  ipcMain.handle('wx-bot-push-self', async (_e, text: string) => {
+    if (!session) return { ok: false, error: 'ClawBot 未连接' }
+    if (!lastWxMsg) return { ok: false, error: '尚未收到微信消息，无法获取 context_token。请先在微信上发送一条消息。' }
+    return await sendMessage(lastWxMsg.userId, text, lastWxMsg.contextToken)
+  })
   ipcMain.handle('wx-bot-logout', () => {
     stopPolling(); session = null; getUpdatesBuf = ''
     try { fs.unlinkSync(sessionPath) } catch {}

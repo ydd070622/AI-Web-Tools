@@ -489,6 +489,25 @@ const TOOL_DEFS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'wechat_push',
+      description:
+        '推送消息到用户的微信。' +
+        '当用户要求"推送到微信"、"微信通知我"、"发到微信"时使用此工具。' +
+        '⚠️ 微信不支持 HTML/Markdown 格式，只接受纯文本。数据请用文字+换行列出，不要用表格、标题、加粗等格式。' +
+        '⚠️ 如果 ClawBot 未连接，请提示用户在 设置→微信 扫码连接。',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: '消息标题（纯文本）' },
+          content: { type: 'string', description: '消息正文（纯文本，不要用HTML/Markdown/表格）' },
+        },
+        required: ['title', 'content'],
+      },
+    },
+  },
 ]
 
 // ===== City Detection (IP geolocation, cached) =====
@@ -784,9 +803,39 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
     args = JSON.parse(argsStr)
   } catch {
     return JSON.stringify({ error: `工具参数解析失败: ${argsStr.slice(0, 100)}` })
-  }
+    }
 
-  switch (name) {
+    // ===== Helper: convert Markdown/HTML table to WeChat plain-text table =====
+    function convertToWeChatText(html: string): string {
+      let text = html
+      // 1. <br> → newline
+      text = text.replace(/<br\s*\/?>/gi, '\n')
+      // 2. </tr> → newline, <td> → space-separated
+      text = text.replace(/<\/tr>/gi, '\n')
+      text = text.replace(/<tr[^>]*>/gi, '')
+      text = text.replace(/<\/t[dh]>/gi, '  ')
+      text = text.replace(/<t[dh][^>]*>/gi, '')
+      // 3. Remove remaining HTML tags (except table ones already handled)
+      text = text.replace(/<\/?(?:thead|tbody|table|colgroup|col|th)[^>]*>/gi, '')
+      text = text.replace(/<[^>]*>/g, '')
+      // 4. Decode entities
+      text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+      text = text.replace(/&nbsp;/gi, ' ')
+      // 5. **bold** → ■bold■
+      text = text.replace(/\*\*(.+?)\*\*/g, '■$1■')
+      // 6. ### headers → plain text with line break
+      text = text.replace(/^#{1,3}\s+/gm, '')
+      // 7. Clean up: collapse 3+ newlines to 2, strip excess spaces
+      text = text.replace(/\n{3,}/g, '\n\n')
+      text = text.replace(/[ \t]{2,}/g, '  ')
+      // 8. Trim lines
+      text = text.split('\n').map(l => l.trim()).join('\n').trim()
+      // 9. Limit length for WeChat
+      if (text.length > 2000) text = text.slice(0, 2000) + '…'
+      return text
+    }
+
+    switch (name) {
     case 'list_drives': {
       if (window.electronAPI?.listDrives) {
         try {
@@ -1405,6 +1454,27 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
           }
         }),
       }, null, 2)
+    }
+
+    case 'wechat_push': {
+      if (!args.title && !args.content) return JSON.stringify({ error: '请提供消息标题和内容' })
+      const { ipcRenderer } = require('electron')
+      try {
+        const status = await ipcRenderer.invoke('wx-bot-status')
+        if (status?.connected) {
+          // 把 Markdown/HTML 转成微信可读的纯文本
+          let text = args.title + '\n\n' + (args.content || '')
+          text = convertToWeChatText(text)
+          const result = await ipcRenderer.invoke('wx-bot-push-self', text)
+          if (result?.ok) return JSON.stringify({ success: true, message: '已通过 ClawBot 发送到微信' })
+          return JSON.stringify({ error: result?.error || 'ClawBot 发送失败' })
+        }
+        const token = await ipcRenderer.invoke('store-get', 'wx_push_token')
+        if (!token) return JSON.stringify({ error: '微信未连接。请在设置 → 微信中扫码连接 ClawBot，或配置 Server酱 SendKey' })
+        return JSON.stringify({ error: 'ClawBot 未连接，Server酱推送暂不可用' })
+      } catch (e: any) {
+        return JSON.stringify({ error: `推送异常: ${e.message}` })
+      }
     }
 
     default:
