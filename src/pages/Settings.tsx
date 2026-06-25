@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, Trash2, Pencil, Settings2, Image, Bot, Key, Command, Info, Loader2, FolderOpen, Search, ArrowLeft, Wifi, ChevronDown, Download, PlugZap } from 'lucide-react'
+import { X, Plus, Trash2, Pencil, Settings2, Image, Bot, Key, Command, Info, Loader2, FolderOpen, Search, ArrowLeft, Wifi, ChevronDown, Download, PlugZap, MessageCircle } from 'lucide-react'
 import type { CustomModel, ShortcutBindings, AgentModel } from '../types'
 import { AGENT_PROVIDERS, loadModels as loadAgentModels, saveModels as saveAgentModels, fetchProviderModels, generateId, getProviderEndpoint } from '../services/agent'
 import { clearCityCache } from '../services/agent-loop'
 import { getSortedProvinces, getCities, getDistricts } from '../data/regions'
+import WeChatConnect from '../components/WeChatConnect'
 
 interface SettingsProps {
   models: CustomModel[]
@@ -400,6 +401,7 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
     { id: 'general', label: '通用', icon: <Settings2 size={16} /> },
     { id: 'image-models', label: '生图模型', icon: <Image size={16} /> },
     { id: 'agent-models', label: '智能体模型', icon: <Bot size={16} /> },
+    { id: 'wechat', label: '微信', icon: <MessageCircle size={16} /> },
     { id: 'tavily', label: 'Tavily', icon: <Search size={16} /> },
     { id: 'shortcuts', label: '快捷键', icon: <Command size={16} /> },
     { id: 'about', label: '关于', icon: <Info size={16} /> },
@@ -869,6 +871,13 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* ========== 微信连接 ========== */}
+            {activeTab === 'wechat' && (
+              <div style={{ maxWidth: 480 }}>
+                <WeChatConnect />
               </div>
             )}
 

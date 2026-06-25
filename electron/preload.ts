@@ -146,4 +146,21 @@ window.electronAPI = {
     ipcRenderer.on('update-error', h)
     return () => { ipcRenderer.removeListener('update-error', h) }
   },
+
+  // ===== WeChat ClawBot APIs =====
+  wxBotGetQRCode: () => ipcRenderer.invoke('wx-bot-get-qrcode'),
+  wxBotCheckQR: (qrId: string) => ipcRenderer.invoke('wx-bot-check-qr', qrId),
+  wxBotSend: (userId: string, text: string, ctxToken: string) => ipcRenderer.invoke('wx-bot-send', userId, text, ctxToken),
+  wxBotStatus: () => ipcRenderer.invoke('wx-bot-status'),
+  wxBotLogout: () => ipcRenderer.invoke('wx-bot-logout'),
+  wxBotOnStatus: (cb: (data: any) => void) => {
+    const h = (_e: any, d: any) => cb(d)
+    ipcRenderer.on('wx-bot-status', h)
+    return () => { ipcRenderer.removeListener('wx-bot-status', h) }
+  },
+  wxBotOnMessage: (cb: (msg: any) => void) => {
+    const h = (_e: any, msg: any) => cb(msg)
+    ipcRenderer.on('wx-bot-message', h)
+    return () => { ipcRenderer.removeListener('wx-bot-message', h) }
+  },
 }

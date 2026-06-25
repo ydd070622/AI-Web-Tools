@@ -473,6 +473,22 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
     }
   }, [activeSession?.messages.length])
 
+  // Listen for WeChat bot messages → auto-send to agent
+  const pendingWxReplyRef = useRef<{ userId: string; contextToken: string } | null>(null)
+  const streamingTextRef = useRef('')
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.wxBotOnMessage?.((msg: any) => {
+      if (msg?.text && handleSendRef.current) {
+        pendingWxReplyRef.current = { userId: msg.userId, contextToken: msg.contextToken }
+        streamingTextRef.current = ''
+        const content = `${msg.text}`
+        setTimeout(() => handleSendRef.current?.(content), 100)
+      }
+    })
+    return () => { unsub?.() }
+  }, [])
+
   // Handle initialContext: text → quote reference, image → auto-submit
   useEffect(() => {
     if (!initialContext || !activeSessionIdRef.current) return
@@ -609,6 +625,7 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
           }
 
           case 'text_chunk': {
+            streamingTextRef.current += event.content
             setSessions(prev => prev.map(s => {
               if (s.id !== sid) return s
               const msgs = [...s.messages]
@@ -669,8 +686,17 @@ export default function AgentPanel({ isOpen, onClose, currentUrl, currentContent
             setError(event.message)
             break
 
-          case 'done':
+          case 'done': {
+            const wxReply = pendingWxReplyRef.current
+            const replyText = streamingTextRef.current
+            streamingTextRef.current = ''
+            if (wxReply && replyText.trim()) {
+              pendingWxReplyRef.current = null
+              const text = replyText.length > 1800 ? replyText.slice(0, 1800) + '...' : replyText
+              window.electronAPI?.wxBotSend?.(wxReply.userId, text, wxReply.contextToken)
+            }
             break
+          }
         }
       }
     } catch (err: any) {
