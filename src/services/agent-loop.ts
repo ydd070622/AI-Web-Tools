@@ -504,15 +504,17 @@ const TOOL_DEFS = [
         '当前共有 2位客户 需要跟进，具体情况如下：\n\n' +
         '| 客户 | 地区 | 小区 | 面积 | 风格 | 跟进 | 下次跟进时间 | 跟进情况 |\n' +
         '|------|------|------|------|------|------|-------------|----------|\n' +
-        '| 张三 | 惠州 | — | 120㎡ | 意式 | 🔴逾期2天 | 6.23 | — |\n' +
+        '| 张三 | 惠州 | — | 120㎡ | 意式 | 🔴今天 | 6.23 | — |\n' +
         '| 李四 | 深圳 | 万科城 | 89㎡ | 法式 | 🟡3天后 | 6.29 | 客户在香港 |\n\n' +
         '重点关注：\n' +
-        '- 张三（惠州）逾期2天，尽快联系。\n\n' +
+        '- 🔴张三（惠州）今天跟进，尽快联系。\n' +
+        '- 🟡李四（深圳）6.29到期，客户在香港。\n\n' +
         '⚠️ 表格列顺序：客户|地区|小区|面积|风格|跟进|下次跟进时间|跟进情况\n' +
         '⚠️ 风格只写喜欢风格简称（意式极简→意式，法式风格→法式），不要带账号，无数据用"—"\n' +
         '⚠️ 下次跟进时间用 M.D 格式（6.23，7.3），不要年份\n' +
         '⚠️ 跟进情况：必须原样输出完整的 followUpNote，不要总结、不要删减、不要改写\n' +
-        '⚠️ 跟进：🔴逾期X天 / 🟢今天 / 🟡X天后\n' +
+        '⚠️ 重点关注不要用 ** 加粗，每行开头用颜色圆圈：🔴逾期或今天 / 🟡1-7天内 / 🟢7天以上\n' +
+        '⚠️ 跟进列同理：🔴逾期/今天 / 🟡X天后（1-7天）/ 🟢X天后（7天+）\n' +
         '⚠️ 每行必须 | 开头 | 结尾，否则微信上不是表格',
       parameters: {
         type: 'object',
@@ -904,8 +906,8 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
       // 5. Decode entities
       text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
       text = text.replace(/&nbsp;/gi, ' ')
-      // 6. **bold** → ■bold■
-      text = text.replace(/\*\*(.+?)\*\*/g, '■$1■')
+      // 6. **bold** → plain (WeChat no bold)
+      text = text.replace(/\*\*(.+?)\*\*/g, '$1')
       // 7. ### → plain text
       text = text.replace(/^#{1,3}\s+/gm, '')
       // 8. Collapse 3+ newlines
@@ -1582,7 +1584,6 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
       try {
         const status = await ipcRenderer.invoke('wx-bot-status')
         if (status?.connected) {
-          // 把 Markdown/HTML 转成微信可读的纯文本
           let text = args.title + '\n\n' + (args.content || '')
           text = convertToWeChatText(text)
           const result = await ipcRenderer.invoke('wx-bot-push-self', text)
