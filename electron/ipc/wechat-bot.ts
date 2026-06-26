@@ -126,6 +126,8 @@ async function pollQR(qrcode: string): Promise<'wait' | 'scaned' | 'confirmed' |
       }
       saveSession()
       notifyRenderer('wx-bot-status', { status: 'connected', botId: session.ilinkBotId })
+      // 初始化 lastWxMsg，使智能体首次即可向用户发消息（无需用户先发消息）
+      lastWxMsg = { userId: session.ilinkUserId, contextToken: '' }
       startPolling()
       return 'confirmed'
     }
@@ -197,7 +199,7 @@ async function sendMessage(userId: string, text: string, contextToken: string): 
 // ===== IPC Registration =====
 export function registerWeChatBot() {
   const saved = loadSession()
-  if (saved) { session = saved; startPolling(); notifyRenderer('wx-bot-status', { status: 'connected' }) }
+  if (saved) { session = saved; lastWxMsg = { userId: saved.ilinkUserId, contextToken: '' }; startPolling(); notifyRenderer('wx-bot-status', { status: 'connected' }) }
 
   ipcMain.handle('wx-bot-get-qrcode', async () => await getQRCode())
   ipcMain.handle('wx-bot-check-qr', async (_e, qrcode: string) => await pollQR(qrcode))
