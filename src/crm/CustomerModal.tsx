@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { X } from 'lucide-react'
-import type { Note, Customer, FollowUp } from './types'
+import type { Customer, FollowUp } from './types'
 import { STYLES, ACCOUNTS } from './constants'
 import { fmtDate, today } from './helpers'
 
-export default function CustomerModal({ customer, notes, onSave, onDelete, onClose }: {
+export default function CustomerModal({ customer, onSave, onDelete, onClose }: {
   customer: Partial<Customer>
-  notes: Note[]
   onSave: (c: Partial<Customer> & { id?: string }) => void
   onDelete?: () => void
   onClose: () => void
@@ -16,9 +15,10 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
     recordDate: customer.recordDate || today(),
     name: customer.name || '',
     city: customer.city || '',
+    community: customer.community || '',
+    houseArea: customer.houseArea || '',
     stylePreference: customer.stylePreference || '',
     style: customer.style || '',
-    sourceNoteId: customer.sourceNoteId || '',
     followUpDate: customer.followUpDate || '',
     followUpNote: customer.followUpNote || '',
   })
@@ -32,9 +32,9 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
     const upd: Partial<Customer> & { id?: string } = {
       id: customer.id,
       ...form,
-      // 新客户默认阶段为 lead，已有客户保持原阶段。选了笔记自动设来源为小红书
-      source: customer.id ? (customer.source || 'xiaohongshu') : (form.sourceNoteId ? 'xiaohongshu' as const : 'other' as const),
-      sourceNoteId: form.sourceNoteId || null,
+      // 新客户默认来源为 other，已有客户保持原来源
+      source: customer.id ? (customer.source || 'other') : 'other' as const,
+      sourceNoteId: customer.sourceNoteId || null,
       ...(customer.id ? {} : { stage: 'wechat' as const }),
     }
 
@@ -66,22 +66,15 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
         </div>
         <div className="crm-modal-body">
 
-          {/* Row 1: 日期 + 业主姓名 + 来源笔记 */}
+          {/* Row 1: 日期 + 业主姓名 */}
           <div className="crm-form-row">
             <div className="crm-form-group" style={{ maxWidth: 140 }}>
               <label className="crm-form-label">日期</label>
               <input type="date" className="crm-form-input" value={form.recordDate} onChange={e => h('recordDate', e.target.value)} />
             </div>
-            <div className="crm-form-group" style={{ flex: 1.3 }}>
+            <div className="crm-form-group" style={{ flex: 1 }}>
               <label className="crm-form-label">业主姓名 *</label>
               <input className="crm-form-input" value={form.name} onChange={e => h('name', e.target.value)} placeholder="输入客户姓名" />
-            </div>
-            <div className="crm-form-group" style={{ flex: 1.3 }}>
-              <label className="crm-form-label">来源笔记</label>
-              <select className="crm-form-input" value={form.sourceNoteId} onChange={e => h('sourceNoteId', e.target.value)}>
-                <option value="">-- 选择 --</option>
-                {notes.map(n => <option key={n.id} value={n.id}>{n.title.slice(0, 24)}</option>)}
-              </select>
             </div>
           </div>
 
@@ -97,6 +90,18 @@ export default function CustomerModal({ customer, notes, onSave, onDelete, onClo
                 <option value="">-- 选择 --</option>
                 {STYLES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
+            </div>
+          </div>
+
+          {/* Row 2.5: 小区名称 + 房子面积 */}
+          <div className="crm-form-row">
+            <div className="crm-form-group">
+              <label className="crm-form-label">小区名称</label>
+              <input className="crm-form-input" value={form.community} onChange={e => h('community', e.target.value)} placeholder="如：万科城、碧桂园" />
+            </div>
+            <div className="crm-form-group">
+              <label className="crm-form-label">房子面积</label>
+              <input className="crm-form-input" value={form.houseArea} onChange={e => h('houseArea', e.target.value)} placeholder="如：120㎡" />
             </div>
           </div>
 

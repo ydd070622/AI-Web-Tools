@@ -26,7 +26,7 @@ export interface Customer {
   id: string; name: string; phone: string; wechat: string
   source: 'xiaohongshu' | 'referral' | 'other'; sourceNoteId: string | null
   stage: 'lead' | 'wechat' | 'communicating' | 'followup' | 'closed'
-  houseType: string; city: string; style: string
+  houseType: string; city: string; community: string; houseArea: string; style: string
   recordDate: string; stylePreference: string
   followUpDate: string; followUpNote: string
   dealAmount: number | null; notes: string
@@ -59,15 +59,9 @@ export interface SharedProps {
   deleteCust: (id: string) => void
   deleteCusts: (ids: string[]) => void
   moveCust: (id: string, stage: string) => void
-  updateNote: (id: string, upd: Partial<Note>) => void
-  addNote: (note: Partial<Note>) => void
-  deleteNotes: (ids: string[]) => void
   viewMode: 'table' | 'kanban'
   setViewMode: (v: 'table' | 'kanban') => void
-  filterNoteId: string | null
-  setFilterNoteId: (id: string | null) => void
   setEditingCustomer: (c: Partial<Customer> | null) => void
-  setEditingNote: (n: Partial<Note> | null) => void
   setEditingContract: (v: boolean) => void
   setViewingContract: (c: Customer | null) => void
   setTab: (tab: string) => void

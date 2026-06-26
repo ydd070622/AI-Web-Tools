@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Search, X, Plus, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search, Plus, GripVertical, ArrowUp, ArrowDown } from 'lucide-react'
 import { pinyin } from 'pinyin-pro'
 import Fuse from 'fuse.js'
 import type { SharedProps, Customer, EnrichedCustomer } from './types'
-import { STAGES, TAG_COLORS } from './constants'
+import { STAGES, TAG_COLORS, ACCOUNTS } from './constants'
 import { avatarGrad, fuDisplay, fmtDate } from './helpers'
 
-export default function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, filterNoteId, setFilterNoteId, enrichCust, moveCust, deleteCusts }: SharedProps) {
+export default function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, enrichCust, updateCust, moveCust, deleteCusts }: SharedProps) {
   const [search, setSearch] = useState('')
   const [dragId, setDragId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -31,22 +31,26 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       const pinyinMatches = customers.filter(c => pinyin(c.name).toLowerCase().includes(q) && !list.some(m => m.id === c.id))
       list = [...list, ...pinyinMatches]
     }
-    if (filterNoteId) list = list.filter(c => c.sourceNoteId === filterNoteId)
     return list.sort((a, b) => {
       const da = a.followUpDate || '0000-00-00'
       const db = b.followUpDate || '0000-00-00'
       return timeDesc ? db.localeCompare(da) : da.localeCompare(db)
     })
-  }, [customers, search, filterNoteId, fuse, timeDesc])
+  }, [customers, search, fuse, timeDesc])
 
   const kanbanGroups = useMemo(() => {
     const m: Record<string, EnrichedCustomer[]> = {}
-    STAGES.filter(s => s.id !== 'closed').forEach(s => { m[s.id] = [] })
-    filtered.forEach(c => { if (m[c.stage]) m[c.stage].push(c) })
-    return m
+    const accountIds = ACCOUNTS.map(a => a.id)
+    const allCols = [...accountIds, '__unassigned']
+    allCols.forEach(id => { m[id] = [] })
+    filtered.forEach(c => {
+      const key = c.style && (accountIds as string[]).includes(c.style) ? c.style : '__unassigned'
+      m[key].push(c)
+    })
+    return { groups: m, columns: allCols }
   }, [filtered])
 
-  const onAdd = (stage: string) => setEditingCustomer({ stage: stage as Customer['stage'] })
+  const onAdd = (account?: string) => setEditingCustomer(account ? { style: account } as Partial<Customer> : {})
 
   return (
     <div className="crm-page">
@@ -54,12 +58,6 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
         <div className="crm-toolbar-left">
           <Search size={14} style={{ opacity: 0.4 }} />
           <input className="crm-search" placeholder="搜索客户、微信名、电话、户型…" value={search} onChange={e => setSearch(e.target.value)} />
-          {filterNoteId && (
-            <span className="crm-filter-chip">
-              📌 {data.notes.find(n => n.id === filterNoteId)?.title?.slice(0, 16)}…
-              <button onClick={() => setFilterNoteId(null)}><X size={12} /></button>
-            </span>
-          )}
         </div>
         <div className="crm-toolbar-right">
           <span className="crm-count-label">{filtered.length} 位客户</span>
@@ -77,7 +75,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
           ) : (
             <>
               <button className="crm-btn-ghost" onClick={() => { setBatchMode(true); setViewMode('table') }}>管理</button>
-              <button className="crm-btn-primary" onClick={() => onAdd('wechat')}><Plus size={14} /> 添加客户</button>
+              <button className="crm-btn-primary" onClick={() => onAdd()}><Plus size={14} /> 添加客户</button>
             </>
           )}
         </div>
@@ -92,6 +90,8 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                 <th style={{ width: 160 }}>客户</th>
                 <th style={{ width: 80 }}>日期</th>
                 <th style={{ width: 70 }}>地区</th>
+                <th style={{ width: 80 }}>小区名称</th>
+                <th style={{ width: 70 }}>房子面积</th>
                 <th style={{ width: 80 }}>喜欢风格</th>
                 <th style={{ width: 90 }}>客户归属</th>
                 <th style={{ width: 90 }}>跟进</th>
@@ -127,6 +127,8 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                     </td>
                     <td><span className="crm-muted">{fmtDate(c.recordDate) || '—'}</span></td>
                     <td><span className="crm-info-text">{c.city || <span className="crm-muted">—</span>}</span></td>
+                    <td><span className="crm-info-text">{c.community || <span className="crm-muted">—</span>}</span></td>
+                    <td><span className="crm-info-text">{c.houseArea || <span className="crm-muted">—</span>}</span></td>
                     <td>{c.stylePreference ? <span className="crm-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>{c.stylePreference}</span> : <span className="crm-muted">—</span>}</td>
                     <td>{c.style ? <span className="crm-tag" style={{ background: (TAG_COLORS[c.style] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.style] || {}).text || 'var(--text-secondary)' }}>{c.style}</span> : <span className="crm-muted">—</span>}</td>
                     <td>{fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">—</span>}</td>
@@ -142,22 +144,32 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
         </div>
       ) : (
         <div className="crm-kanban">
-          {STAGES.filter(s => s.id !== 'closed').map(s => {
-            const cards = kanbanGroups[s.id] || []
+          {kanbanGroups.columns.map(colId => {
+            const cards = kanbanGroups.groups[colId] || []
+            const isUnassigned = colId === '__unassigned'
+            const accountInfo = !isUnassigned ? ACCOUNTS.find(a => a.id === colId) : null
+            const label = accountInfo?.label || '未分配'
+            const tagColor = !isUnassigned ? TAG_COLORS[colId] : { bg: '#6b7280', text: '#fff' }
             return (
-              <div key={s.id} className="crm-kanban-col"
+              <div key={colId} className="crm-kanban-col"
                 onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('drag-over') }}
                 onDragLeave={e => { e.currentTarget.classList.remove('drag-over') }}
-                onDrop={e => { e.currentTarget.classList.remove('drag-over'); if (dragId) moveCust(dragId, s.id); setDragId(null) }}>
+                onDrop={e => {
+                  e.currentTarget.classList.remove('drag-over')
+                  if (dragId) {
+                    updateCust(dragId, { style: isUnassigned ? '' : colId })
+                    setDragId(null)
+                  }
+                }}>
                 <div className="crm-kanban-col-header">
-                  <span className="crm-dot" style={{ background: s.dotColor }} />
-                  <span>{s.label}</span>
+                  <span className="crm-dot" style={{ background: tagColor.bg }} />
+                  <span>{label}</span>
                   <span className="crm-kanban-count">{cards.length}</span>
                 </div>
                 <div className="crm-kanban-cards">
                   {cards.map(c => (
                     <div key={c.id} className={`crm-card ${dragId === c.id ? 'dragging' : ''}`}
-                      style={{ borderLeftColor: s.dotColor }}
+                      style={{ borderLeftColor: tagColor.bg }}
                       draggable
                       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragId(c.id) }}
                       onDragEnd={() => setDragId(null)}
@@ -171,16 +183,16 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                       </div>
                       <div className="crm-card-tags">
                         {c.stylePreference && <span className="crm-card-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>{c.stylePreference}</span>}
-                        {c.style && <span className="crm-card-tag" style={{ background: (TAG_COLORS[c.style] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.style] || {}).text || 'var(--text-secondary)' }}>{c.style}</span>}
                         {c.wechat && <span className="crm-card-tag tag-blue">{c.wechat}</span>}
                       </div>
                       <div className="crm-card-footer">
                         {(() => { const fu = fuDisplay(c.followUpDate); return fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">{c.followUpDate ? fmtDate(c.followUpDate) : '待定'}</span> })()}
+                        <span className={`crm-stage-dot stage-${c.stage}`} title={STAGES.find(s => s.id === c.stage)?.label || c.stage} />
                       </div>
                     </div>
                   ))}
                 </div>
-                <button className="crm-kanban-add" onClick={() => onAdd(s.id)}>+ 添加</button>
+                <button className="crm-kanban-add" onClick={() => onAdd(isUnassigned ? undefined : colId)}>+ 添加</button>
               </div>
             )
           })}

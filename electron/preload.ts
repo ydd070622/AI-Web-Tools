@@ -123,6 +123,10 @@ window.electronAPI = {
   memoryRecall: (category?: string, keyword?: string, limit?: number, mode?: 'index' | 'full') => ipcRenderer.invoke('memory-recall', category, keyword, limit, mode),
   memoryDelete: (category: string, search: string) => ipcRenderer.invoke('memory-delete', category, search),
 
+  // Feishu CLI
+  feishuExec: (command: string) => ipcRenderer.invoke('feishu-exec', command),
+  feishuCheck: () => ipcRenderer.invoke('feishu-check'),
+
   // Update
   startUpdateDownload: (downloadUrl: string, version: string) => ipcRenderer.invoke('update-start-download', downloadUrl, version),
   installUpdate: () => ipcRenderer.invoke('update-install'),

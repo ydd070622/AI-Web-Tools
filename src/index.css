@@ -2871,7 +2871,7 @@ textarea.input-base {
 .crm-link-btn:hover { background: rgba(99,102,241,0.18); }
 
 /* CRM KPI Cards */
-.crm-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.crm-kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
 .crm-kpi-card {
   background: var(--bg-card); border: 1px solid var(--border-color);
   border-radius: 10px; padding: 16px 18px;
@@ -3027,31 +3027,55 @@ textarea.input-base {
 .crm-card-tag.tag-yellow { background: rgba(245,158,11,0.1); color: #fbbf24; }
 .crm-card-footer { display: flex; align-items: center; justify-content: space-between; font-size: 10px; }
 
-/* CRM Funnel */
-.crm-funnel { display: flex; flex-direction: column; gap: 6px; }
-.crm-funnel-row { display: flex; align-items: center; gap: 10px; }
-.crm-funnel-label { width: 72px; font-size: 11px; color: var(--text-secondary); text-align: right; flex-shrink: 0; }
-.crm-funnel-track { flex: 1; height: 26px; background: var(--bg-primary); border-radius: 5px; overflow: hidden; }
-.crm-funnel-fill {
-  height: 100%; border-radius: 5px; display: flex; align-items: center; padding-left: 10px;
-  font-size: 10px; font-weight: 700; color: #fff; transition: width 0.8s ease;
+/* CRM Funnel — 可视化梯形漏斗 */
+.crm-funnel-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 12px 20px 8px;
 }
-.crm-funnel-rate { font-size: 10px; opacity: 0.85; }
-.crm-funnel-pct { width: 40px; font-size: 11px; font-weight: 600; flex-shrink: 0; }
-.crm-funnel-count { width: 36px; font-size: 12px; font-family: var(--font-mono); font-weight: 700; text-align: right; flex-shrink: 0; }
 
-/* CRM Rank List */
-.crm-rank-item {
-  display: flex; align-items: center; gap: 10px; font-size: 12px;
-  padding: 7px 0; border-bottom: 1px solid var(--border-color);
+.crm-funnel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  height: 46px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  min-width: 80px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.crm-rank-num {
-  width: 20px; height: 20px; border-radius: 5px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700; flex-shrink: 0;
+
+.crm-funnel-bar-label {
+  font-size: 13px;
+  white-space: nowrap;
 }
-.crm-rank-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crm-rank-count { color: var(--accent); font-weight: 700; font-size: 11px; font-family: var(--font-mono); }
+
+.crm-funnel-bar-count {
+  font-size: 17px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+}
+
+.crm-funnel-arrow {
+  width: 0;
+  height: 0;
+  border-left: 22px solid transparent;
+  border-right: 22px solid transparent;
+  border-top-width: 14px;
+  border-top-style: solid;
+  margin: -1px 0;
+}
+
+.crm-funnel-rate-badge {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 5px 0 1px;
+}
 
 /* CRM Modal */
 .crm-modal-overlay {
@@ -3128,7 +3152,6 @@ textarea.input-base {
 .theme-light .crm-search { background: #f5f6fa; }
 .theme-light .crm-table th { background: #f5f6fa; }
 .theme-light .crm-kanban-col { background: #f5f6fa; }
-.theme-light .crm-funnel-track { background: #f0f1f5; }
 .theme-light .crm-view-toggle { background: #f0f1f5; }
 .theme-light .crm-view-btn.active { background: #fff; }
 
@@ -3302,9 +3325,9 @@ textarea.input-base {
   padding: 4px 8px; font-size: 12px; border-radius: 4px;
 }
 
-/* ===== CRM KPI 5-col grid support ===== */
+/* ===== CRM KPI 5-col grid ===== */
 .crm-kpi-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
   margin-bottom: 16px;
 }
 

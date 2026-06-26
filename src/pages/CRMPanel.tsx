@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
-import type { CRMData, Customer, Note, EnrichedCustomer, FollowUp } from '../crm/types'
+import type { CRMData, Customer, EnrichedCustomer, FollowUp } from '../crm/types'
 import { STAGES, SOURCES, TABS, STORAGE_KEY } from '../crm/constants'
 import { today as todayStr, daysDiff } from '../crm/helpers'
 import { createDefaultData } from '../crm/defaultData'
@@ -8,9 +8,7 @@ import Workbench from '../crm/Workbench'
 import CustomerPage from '../crm/CustomerPage'
 import ContractPage from '../crm/ContractPage'
 import DashboardPage from '../crm/DashboardPage'
-import NotesPage from '../crm/NotesPage'
 import CustomerModal from '../crm/CustomerModal'
-import NoteModal from '../crm/NoteModal'
 import ContractModal from '../crm/ContractModal'
 import ContractDetailModal from '../crm/ContractDetailModal'
 
@@ -19,10 +17,8 @@ export default function CRMPanel() {
   const [tab, setTab] = useState<string>('workbench')
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
-  const [editingNote, setEditingNote] = useState<Partial<Note> | null>(null)
   const [editingContract, setEditingContract] = useState(false)
   const [viewingContract, setViewingContract] = useState<Customer | null>(null)
-  const [filterNoteId, setFilterNoteId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -52,7 +48,7 @@ export default function CRMPanel() {
               followUpHistory = []
             }
           }
-          return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', ...contractBase, followUpHistory }
+          return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', community: c.community || '', houseArea: c.houseArea || '', ...contractBase, followUpHistory }
         }),
       })
       if (window.electronAPI) {
@@ -104,6 +100,7 @@ export default function CRMPanel() {
       id: 'c' + Date.now(), name: cust.name || '', phone: cust.phone || '', wechat: cust.wechat || '',
       source: cust.source || 'xiaohongshu', sourceNoteId: cust.sourceNoteId || null,
       stage: cust.stage || 'lead', houseType: cust.houseType || '', city: cust.city || '',
+      community: cust.community || '', houseArea: cust.houseArea || '',
       style: cust.style || '', recordDate: cust.recordDate || ts, stylePreference: cust.stylePreference || '',
       followUpDate: cust.followUpDate || '', followUpNote: cust.followUpNote || '',
       dealAmount: cust.dealAmount ?? null, notes: cust.notes || '', createdAt: ts, updatedAt: ts,
@@ -142,26 +139,6 @@ export default function CRMPanel() {
     updateCust(id, upd)
   }, [updateCust, data.customers])
 
-  const updateNote = useCallback((id: string, upd: Partial<Note>) => {
-    persist({ ...data, notes: data.notes.map(n => n.id === id ? { ...n, ...upd } : n) })
-  }, [data, persist])
-
-  const addNote = useCallback((note: Partial<Note>) => {
-    const n: Note = {
-      id: 'n' + Date.now(), title: note.title || '', publishDate: note.publishDate || '',
-      status: 'published' as Note['status'], views: 0, likes: 0, comments: 0,
-      account: note.account || (data.accounts && data.accounts[0]) || '',
-      style: note.style || '',
-    }
-    persist({ ...data, notes: [...(data.notes || []), n] })
-  }, [data, persist])
-
-  const deleteNotes = useCallback((ids: string[]) => {
-    if (!confirm(`确定删除选中的 ${ids.length} 条笔记？`)) return
-    persist({ ...data, notes: data.notes.filter(n => !ids.includes(n.id)) })
-    toast.success(`已删除 ${ids.length} 条笔记`)
-  }, [data, persist])
-
   const followUps = useMemo(() =>
     data.customers.filter(c => c.followUpDate && c.stage !== 'closed')
       .map(c => ({ ...c, diff: daysDiff(c.followUpDate, ts) }))
@@ -173,14 +150,13 @@ export default function CRMPanel() {
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, updateNote, addNote, deleteNotes, viewMode, setViewMode, filterNoteId, setFilterNoteId, setEditingCustomer, setEditingNote, setEditingContract, setViewingContract, setTab }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
     { ...TABS[1], badge: null },
     { ...TABS[2], badge: closedCusts.length > 0 ? { count: closedCusts.length, cls: 'success' } : null },
     { ...TABS[3], badge: null },
-    { ...TABS[4], badge: null },
   ]
 
   return (
@@ -195,7 +171,7 @@ export default function CRMPanel() {
           {sidebarItems.map(item => {
             const Icon = item.icon
             return (
-              <div key={item.id} className={`crm-sidebar-item ${tab === item.id ? 'active' : ''}`} onClick={() => { setTab(item.id); setFilterNoteId(null) }}>
+              <div key={item.id} className={`crm-sidebar-item ${tab === item.id ? 'active' : ''}`} onClick={() => setTab(item.id)}>
                 <span className="crm-sidebar-item-icon"><Icon size={15} /></span>
                 <span>{item.label}</span>
                 {item.badge && <span className={`crm-sidebar-badge ${item.badge.cls}`}>{item.badge.count}</span>}
@@ -210,23 +186,14 @@ export default function CRMPanel() {
           {tab === 'customers' && <CustomerPage {...sharedProps} />}
           {tab === 'contracts' && <ContractPage {...sharedProps} />}
           {tab === 'dashboard' && <DashboardPage {...sharedProps} />}
-          {tab === 'notes' && <NotesPage {...sharedProps} />}
         </div>
       </div>
       {editingCustomer && (
         <CustomerModal
           customer={editingCustomer}
-          notes={data.notes}
           onSave={c => { c.id ? updateCust(c.id, c) : addCust(c); setEditingCustomer(null) }}
           onDelete={editingCustomer.id ? () => { deleteCust(editingCustomer.id!); setEditingCustomer(null) } : undefined}
           onClose={() => setEditingCustomer(null)}
-        />
-      )}
-      {editingNote && (
-        <NoteModal
-          note={editingNote}
-          onSave={n => { n.id ? updateNote(n.id, n) : addNote(n); setEditingNote(null) }}
-          onClose={() => setEditingNote(null)}
         />
       )}
       {editingContract && (

@@ -495,16 +495,90 @@ const TOOL_DEFS = [
       name: 'wechat_push',
       description:
         '推送消息到用户的微信。' +
-        '当用户要求"推送到微信"、"微信通知我"、"发到微信"时使用此工具。' +
-        '⚠️ 微信不支持 HTML/Markdown 格式，只接受纯文本。数据请用文字+换行列出，不要用表格、标题、加粗等格式。' +
-        '⚠️ 如果 ClawBot 未连接，请提示用户在 设置→微信 扫码连接。',
+        '当用户要求"推送到微信"、"微信通知我"、"发到微信"时使用此工具。\n' +
+        '⚠️ 微信仅支持纯文本。系统会自动将 Markdown 表格转为对齐文本。\n\n' +
+        '📋 客户跟进统计输出规范（严格执行）：\n' +
+        '1. 正文只能是最终结果，禁止任何思考过程、开场白。\n' +
+        '2. 表格必须用管道符 | 分隔列，每行用 \\n 换行。系统自动转对齐文本。\n' +
+        '3. 表格后接"重点关注"要点。\n\n' +
+        '标准格式示例：\n' +
+        '当前共有 2位客户 需要跟进，具体情况如下：\\n\\n' +
+        '| 客户 | 地区 | 小区 | 面积 | 风格 | 跟进 | 下次跟进时间 | 跟进情况 |\\n' +
+        '|------|------|------|------|------|------|-------------|----------|\\n' +
+        '| 张三 | 惠州 | — | 120㎡ | 意式极简(守一意式) | 🔴逾期2天 | 2026-06-23 | — |\\n' +
+        '| 李四 | 深圳 | 万科城 | 89㎡ | 法式风格(守中法式) | 🟡3天后 | 2026-06-29 | 客户在香港 |\\n\\n' +
+        '重点关注：\\n' +
+        '- 张三（惠州）逾期2天，尽快联系。\\n' +
+        '- 李四（深圳）6月29日到期。\\n\\n' +
+        '⚠️ 表格列顺序固定：客户|地区|小区|面积|风格|跟进|下次跟进时间|跟进情况\n' +
+        '⚠️ 风格格式：喜欢风格(归属账号)，无数据用"—"\n' +
+        '⚠️ 跟进列：逾期🔴逾期X天 / 今天🟢今天 / 未来🟡X天后\n' +
+        '⚠️ 表格每行末尾必须有 | 和 \\n，否则不能识别为表格行',
       parameters: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: '消息标题（纯文本）' },
-          content: { type: 'string', description: '消息正文（纯文本，不要用HTML/Markdown/表格）' },
+          title: { type: 'string', description: '消息标题' },
+          content: { type: 'string', description: '纯文本正文。表格用 | 分隔列，行间用 \\n 换行。禁止思考过程，只放最终结果' },
         },
         required: ['title', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'lark_status',
+      description:
+        '检测飞书CLI工具的安装和登录状态。' +
+        '返回：CLI是否已安装、版本号、是否已授权登录、当前登录用户。' +
+        '在执行任何飞书操作之前，如果用户是第一次使用飞书相关功能，建议先调用此工具确认状态。' +
+        '如果未安装或未授权，此工具会返回具体的安装指引。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'lark_exec',
+      description:
+        '执行飞书(lark) CLI命令，直接操作飞书的各项功能。' +
+        '飞书CLI覆盖消息、云文档、多维表格、日历、邮箱、任务、知识库、视频会议、审批、考勤等17个业务域。\n\n' +
+        '⚠️ 使用要点：\n' +
+        '- 命令必须以 lark-cli 开头（如 lark-cli calendar +agenda）\n' +
+        '- 快捷命令（+前缀）最省Token，优先使用。例如 lark-cli calendar +agenda 查日程\n' +
+        '- 如果不知道具体命令，可以先用 lark-cli help 查看帮助，或用 lark-cli <domain> help 查看某个业务域的子命令\n' +
+        '- 错误时飞书CLI会返回有帮助的错误信息和修复建议，请仔细阅读\n' +
+        '- 任务执行完成后，将飞书CLI的输出结果以清晰的方式展示给用户（不要直接 dump JSON）\n\n' +
+        '⚡ 常用快捷命令速查（必须严格使用以下参数名，LLM不要自己编造参数）：\n' +
+        '- 📨 发消息给自己: lark-cli im +messages-send --user-id <你的open_id> --text "<内容>" --as user\n' +
+        '- 📨 发Markdown消息: lark-cli im +messages-send --user-id <id> --markdown "<内容>" --as user\n' +
+        '- 📨 发消息到群: lark-cli im +messages-send --chat-id oc_xxx --text "<内容>" --as bot\n' +
+        '- 🔍 搜索消息: lark-cli im +messages-search --query <关键词> --as user\n' +
+        '- 📅 今日日程: lark-cli calendar +agenda\n' +
+        '- 📅 创建日程: lark-cli calendar events create --params \'{"summary":"标题","start_time":"...","end_time":"..."}\'\n' +
+        '- 📄 创建文档: lark-cli docs +create --title "<标题>"\n' +
+        '- 📊 多维表格列表: lark-cli base +list\n' +
+        '- ✅ 创建任务: lark-cli task +task-create --summary "<标题>"\n' +
+        '- 📧 搜索邮件: lark-cli mail +search\n' +
+        '- 🎥 会议纪要: lark-cli vc +meeting-list（搜索会议）、lark-cli vc +minutes（获取纪要）\n' +
+        '- 📋 审批: lark-cli approval +instance-list\n' +
+        '\n⚠️ 关键：--user-id = open_id(ou_xxx)，--chat-id = 群ID(oc_xxx)。--as user 以用户身份发，--as bot 以机器人身份发。不确定参数时务必先用 lark-cli <domain> <shortcut> --help 查看正确参数名，绝对不要自己编造参数名！',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: {
+            type: 'string',
+            description:
+              '完整的 lark-cli 命令字符串。必须以 lark-cli 或 npx @larksuite/cli 开头。' +
+              '例如: "lark-cli calendar +agenda"、"lark-cli im +messages-send --user-id ou_xxx --text hello --as user"、' +
+              '"lark-cli docs +create --title 周报"',
+          },
+        },
+        required: ['command'],
       },
     },
   },
@@ -673,6 +747,8 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n- delete_memory：删除某条记忆（用户要求"忘掉"时使用）' +
     '\n- navigate_to_page：导航到应用内的指定页面' +
     '\n- query_deepseek_usage：查询 DeepSeek 账户余额、Token 用量、费用数据（用户问 DeepSeek 余额/用量/费用时优先使用此工具直接回答，不要让用户自己去查看）' +
+    '\n- lark_status：检测飞书CLI安装和登录状态（首次使用飞书功能前建议调用此工具确认状态）' +
+    '\n- lark_exec：执行飞书CLI命令，直接操作飞书各项功能——发送/搜索消息、创建/编辑云文档、管理多维表格记录、查询/创建日程、管理任务、搜索知识库、查邮件、获取会议纪要、查询审批等。命令必须以 lark-cli 或 npx @larksuite/cli 开头。快捷命令（+前缀）最省Token，不确定命令时用 lark-cli help 或 lark-cli <业务域> help 查看帮助' +
     '\n\n使用策略：' +
     '\n1. 天气/新闻/实时数据 → 使用 web_search 搜索（搜索时带上正确的日期）。搜索结果会返回 answer 字段（直接答案）和 results 数组（结构化内容），优先使用 answer 字段' +
     '\n2. 用户问电脑文件 → 用 file_list 列出目录，用 file_read 读取内容' +
@@ -693,7 +769,12 @@ async function buildSystemPrompt(modelName?: string, providerName?: string): Pro
     '\n  - 绝对不要凭索引标题猜测细节后回答，也不要直接说"没记住"——先检索再说。' +
     '\n  - 用户说"忘掉/删掉某条记忆" → 用 delete_memory' +
     '\n5. 用户问 DeepSeek 余额/用量/Token/费用 → 只需调用 query_deepseek_usage 工具（会自动跳转到 dashboard），然后基于返回的数据用自然语言输出完整回答（余额、各模型Token、每日费用明细）' +
-    '\n6. 在回答中自然引用信息来源（如"据XX网站消息……"），直接融入正文流中。**禁止用 > 块引用或单独的来源列表格式**' +
+    '\n6. 飞书操作 → 用户要求操作飞书时，先调用 lark_status 确认CLI可用。然后构造 lark_exec 命令执行。如果CLI未安装或未授权，按返回的指引告诉用户如何安装/登录。命令执行后，将结果以清晰的文字呈现给用户（不要直接dump原始JSON）。如果操作失败，检查错误信息中的 hint/建议，引导用户修复。\n' +
+    '⚠️ 飞书发消息关键规则：\n' +
+    '- 发送多行/结构化内容（如CRM跟进汇总、表格、列表）→ 必须用 --markdown 而非 --text。示例: lark-cli im +messages-send --user-id ou_xxx --markdown "# 标题\\n内容...\\n- 项目1" --as user\n' +
+    '- 简单一行文本才用 --text\n' +
+    '- --markdown 内容中的换行用 \\\\n 转义，确保所有信息包含在一次命令调用中，不要拆分多条消息' +
+    '\n7. 在回答中自然引用信息来源（如"据XX网站消息……"），直接融入正文流中。**禁止用 > 块引用或单独的来源列表格式**' +
     '\n\n行为规范：' +
     '\n- ⚠️ 重要：当需要同时使用多个工具时，先连续调用所有工具（不要中间输出文字），全部工具返回结果后再一次性输出完整回答。否则工具调用前的文字会被撤销' +
     '\n- 调用工具时直接调用，不要先输出「我来查一下」「让我搜索」之类的预备文字' +
@@ -805,32 +886,107 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
     return JSON.stringify({ error: `工具参数解析失败: ${argsStr.slice(0, 100)}` })
     }
 
-    // ===== Helper: convert Markdown/HTML table to WeChat plain-text table =====
+    // ===== Helper: convert Markdown/HTML to WeChat plain-text with aligned tables =====
     function convertToWeChatText(html: string): string {
       let text = html
-      // 1. <br> → newline
+      // 1. Unescape JSON-escaped newlines (LLM sometimes sends \\n instead of real \n)
+      text = text.replace(/\\n/g, '\n')
+      // 2. <br> → newline
       text = text.replace(/<br\s*\/?>/gi, '\n')
-      // 2. </tr> → newline, <td> → space-separated
+      // 3. HTML table → pipe-separated format
       text = text.replace(/<\/tr>/gi, '\n')
       text = text.replace(/<tr[^>]*>/gi, '')
-      text = text.replace(/<\/t[dh]>/gi, '  ')
-      text = text.replace(/<t[dh][^>]*>/gi, '')
-      // 3. Remove remaining HTML tags (except table ones already handled)
+      text = text.replace(/<\/t[dh]>/gi, ' | ')
+      text = text.replace(/<t[dh][^>]*>/gi, '| ')
+      // 4. Remove remaining HTML tags
       text = text.replace(/<\/?(?:thead|tbody|table|colgroup|col|th)[^>]*>/gi, '')
       text = text.replace(/<[^>]*>/g, '')
-      // 4. Decode entities
+      // 5. Decode entities
       text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
       text = text.replace(/&nbsp;/gi, ' ')
-      // 5. **bold** → ■bold■
+      // 6. **bold** → ■bold■
       text = text.replace(/\*\*(.+?)\*\*/g, '■$1■')
-      // 6. ### headers → plain text with line break
+      // 7. ### headers → plain text
       text = text.replace(/^#{1,3}\s+/gm, '')
-      // 7. Clean up: collapse 3+ newlines to 2, strip excess spaces
+      // 8. Collapse 3+ newlines
       text = text.replace(/\n{3,}/g, '\n\n')
-      text = text.replace(/[ \t]{2,}/g, '  ')
-      // 8. Trim lines
-      text = text.split('\n').map(l => l.trim()).join('\n').trim()
-      // 9. Limit length for WeChat
+
+      // 9. Detect & format tables (pipe-separated OR space-aligned)
+      const lines = text.split('\n')
+      const out: string[] = []
+      let tableBuf: string[][] = []
+      let tableMode: 'pipe' | 'space' | null = null
+
+      function flushTable() {
+        if (tableBuf.length === 0) return
+        const colWidths: number[] = []
+        for (const row of tableBuf) {
+          for (let i = 0; i < row.length; i++) {
+            colWidths[i] = Math.max(colWidths[i] || 0, row[i].length)
+          }
+        }
+        for (const row of tableBuf) {
+          out.push(row.map((c, i) => c.padEnd(colWidths[i] || 0, ' ')).join('  '))
+        }
+        out.push('')
+        tableBuf = []
+        tableMode = null
+      }
+
+      function isPipeRow(line: string) {
+        const t = line.trim()
+        return t.startsWith('|') && t.endsWith('|')
+      }
+
+      function splitPipeRow(line: string): string[] | null {
+        const t = line.trim()
+        if (!t.startsWith('|') || !t.endsWith('|')) return null
+        const cells = t.split('|').slice(1, -1).map(c => c.trim())
+        if (cells.length < 2) return null
+        if (cells.every(c => /^[-:]+$/.test(c))) return null // separator row
+        return cells
+      }
+
+      function splitSpaceRow(line: string): string[] | null {
+        // Split by 2+ spaces to get columns
+        const parts = line.split(/[ ]{2,}/)
+        if (parts.length < 3) return null
+        return parts.map(c => c.trim())
+      }
+
+      for (const line of lines) {
+        // Try pipe format first
+        const pipeCells = splitPipeRow(line)
+        if (pipeCells && (tableMode === 'pipe' || tableMode === null)) {
+          tableMode = 'pipe'
+          tableBuf.push(pipeCells)
+          continue
+        }
+
+        // Try space-aligned format (only if not already in pipe mode)
+        if (tableMode !== 'pipe') {
+          const spaceCells = splitSpaceRow(line)
+          if (spaceCells && (tableMode === 'space' || tableMode === null)) {
+            // Verify it looks like a table: at least 4 columns, or has consistent column count with buffer
+            if (spaceCells.length >= 4 || (tableBuf.length > 0 && spaceCells.length === tableBuf[0].length)) {
+              tableMode = 'space'
+              tableBuf.push(spaceCells)
+              continue
+            }
+          }
+        }
+
+        // Not a table row — flush and output as-is
+        flushTable()
+        out.push(line)
+      }
+      flushTable()
+
+      text = out.join('\n')
+
+      // 10. Trim trailing spaces (preserving alignment), trim overall
+      text = text.split('\n').map(l => l.trimEnd()).join('\n').trim()
+      // 11. Limit length for WeChat
       if (text.length > 2000) text = text.slice(0, 2000) + '…'
       return text
     }
@@ -1413,7 +1569,8 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
             name: c.name, phone: c.phone,
             source: getNoteTitle(c.sourceNoteId) || sourceLabel(c.source),
             wechat: c.wechat,
-            city: c.city, stylePreference: c.stylePreference, style: c.style,
+            city: c.city, community: c.community, houseArea: c.houseArea,
+            stylePreference: c.stylePreference, style: c.style,
             followUpDate: c.followUpDate || undefined,
             followUpStatus: fuStatus || undefined,
             followUpNote: c.followUpNote || undefined,
@@ -1475,6 +1632,35 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
       } catch (e: any) {
         return JSON.stringify({ error: `推送异常: ${e.message}` })
       }
+    }
+
+    case 'lark_status': {
+      if (window.electronAPI?.feishuCheck) {
+        try {
+          const result = await window.electronAPI.feishuCheck()
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `飞书状态检测失败: ${e.message}` })
+        }
+      }
+      return JSON.stringify({ error: '飞书CLI功能不可用（非桌面环境）' })
+    }
+
+    case 'lark_exec': {
+      const command = args.command
+      if (!command || typeof command !== 'string') {
+        return JSON.stringify({ error: 'lark_exec 缺少 command 参数' })
+      }
+      if (window.electronAPI?.feishuExec) {
+        try {
+          const result = await window.electronAPI.feishuExec(command)
+          // Pass through the result — includes success/error/hint fields
+          return JSON.stringify(result, null, 2)
+        } catch (e: any) {
+          return JSON.stringify({ error: `飞书命令执行异常: ${e.message}`, command: command.slice(0, 100) })
+        }
+      }
+      return JSON.stringify({ error: '飞书CLI功能不可用（非桌面环境）' })
     }
 
     default:

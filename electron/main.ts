@@ -16,6 +16,9 @@ import { registerWeChatBot } from './ipc/wechat-bot'
 // Agent tool IPC handlers (web_fetch, file_*)
 import './tool-handlers'
 
+// Feishu CLI IPC handlers
+import './ipc/feishu'
+
 // Auto-updater
 import { checkForUpdates, registerUpdateIPC } from './updater'
 

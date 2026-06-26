@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import type { SharedProps, FollowUp } from './types'
 import { avatarGrad, fmtDate } from './helpers'
 
-export default function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, updateCust, setEditingCustomer, setEditingNote, setTab }: SharedProps) {
+export default function Workbench({ data, followUps, todayCount, overdueCount, closedCusts, updateCust, setEditingCustomer, setTab }: SharedProps) {
   const active = data.customers.filter(c => c.stage !== 'closed')
   const closed = closedCusts.length
 

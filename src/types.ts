@@ -198,6 +198,30 @@ declare global {
         error?: string
       }>
       memoryDelete: (category: string, search: string) => Promise<{ success?: boolean; category?: string; file?: string; message?: string; error?: string; searchPreview?: string }>
+      // Feishu CLI
+      feishuExec: (command: string) => Promise<{
+        success?: boolean
+        stdout?: string
+        stderr?: string
+        error?: string
+        detail?: string
+        hint?: string
+        steps?: string[]
+        docs?: string
+        installCommand?: string
+        authCommand?: string
+        command?: string
+        truncated?: boolean
+      }>
+      feishuCheck: () => Promise<{
+        installed: boolean
+        version?: string
+        installMethod?: 'global' | 'npx'
+        authed: boolean
+        authUser?: string
+        tenant?: string
+        error?: string
+      }>
     }
   }
 }
