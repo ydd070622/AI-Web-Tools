@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Search, X, Plus, GripVertical, ArrowUp, ArrowDown, Download } from 'lucide-react'
 import { pinyin } from 'pinyin-pro'
 import Fuse from 'fuse.js'
+import ExcelJS from 'exceljs'
 import type { SharedProps, Customer, EnrichedCustomer } from './types'
 import { STAGES, TAG_COLORS, ACCOUNTS } from './constants'
 import { avatarGrad, fuDisplay, fmtDate } from './helpers'
@@ -40,7 +41,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       const db = b.followUpDate || '0000-00-00'
       return timeDesc ? db.localeCompare(da) : da.localeCompare(db)
     })
-  }, [customers, search, fuse, timeDesc])
+  }, [customers, search, fuse, timeDesc, followUpFilter])
 
   const kanbanGroups = useMemo(() => {
     const m: Record<string, EnrichedCustomer[]> = {}
@@ -56,31 +57,94 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
 
   const onAdd = (account?: string) => setEditingCustomer(account ? { style: account } as Partial<Customer> : {})
 
-  // CSV download
-  const handleDownload = () => {
-    const headers = ['客户','日期','地区','小区名称','房子面积','喜欢风格','客户归属','跟进','下次跟进时间','跟进情况']
-    const rows = filtered.map(c => {
-      const fu = fuDisplay(c.followUpDate || null)
-      const shortStyle = c.stylePreference === '意式极简' ? '意式' : c.stylePreference === '法式风格' ? '法式' : c.stylePreference
-      return [
-        c.name,
-        c.recordDate ? fmtDate(c.recordDate) : '',
-        c.city || '',
-        c.community || '',
-        c.houseArea || '',
-        shortStyle || c.stylePreference || '',
-        c.style || '',
-        fu ? fu.text : (c.followUpDate ? fmtDate(c.followUpDate) : '—'),
-        c.followUpDate || '',
-        c.followUpNote || '',
-      ]
+  // Date helpers for filters
+  const now = new Date()
+  const daysFromNow = (n: number) => { const d = new Date(now); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0] }
+  const getMonday = (d: Date) => { const r = new Date(d); r.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return r }
+  const fmtLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const thisMon = getMonday(now)
+  const thisWeekStart = fmtLocal(thisMon)
+  const thisWeekEnd = fmtLocal(new Date(thisMon.getTime() + 6 * 86400000))
+  const nextMon = new Date(thisMon.getTime() + 7 * 86400000)
+  const thisWeekEnd2 = fmtLocal(nextMon)
+  const nextWeekEnd = fmtLocal(new Date(nextMon.getTime() + 6 * 86400000))
+
+  // Excel export — matches 客户信息表.xls template
+  const handleDownload = async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Sheet1')
+
+    // Column widths (from XLS template: xlrd width / 256 = chars)
+    // 序号6.1 | 日期6.0 | 业主姓名7.9 | 地区7.0 | 小区8.2 | 面积7.9 | 风格6.8 | 跟进时间8.9 | 跟进情况72.8
+    ws.columns = [
+      { width: 6.1 },   // 序号
+      { width: 6.0 },   // 日期
+      { width: 7.9 },   // 业主姓名
+      { width: 7.0 },   // 地区
+      { width: 8.2 },   // 小区
+      { width: 7.9 },   // 面积
+      { width: 6.8 },   // 风格
+      { width: 8.9 },   // 跟进时间
+      { width: 72.8 },  // 跟进情况
+    ]
+
+    // Row 1-2: Merged title "客户信息表" (row height 14.2pt = 28.4)
+    ws.mergeCells('A1:I2')
+    const titleCell = ws.getCell('A1')
+    titleCell.value = '客户信息表'
+    titleCell.font = { name: '微软雅黑', size: 14, bold: true }
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    ws.getRow(1).height = 14.2
+    ws.getRow(2).height = 14.2
+
+    // Row 3: Headers (row height 32pt)
+    const headers = ['序号', '日期', '业主姓名', '地区', '小区', '面积', '风格', '跟进时间', '跟进情况']
+    const headerRow = ws.getRow(3)
+    headerRow.height = 32
+    headers.forEach((h, i) => {
+      const cell = headerRow.getCell(i + 1)
+      cell.value = h
+      cell.font = { name: '微软雅黑', size: 10, bold: true }
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cell.border = {
+        top: { style: 'thin' }, bottom: { style: 'thin' },
+        left: { style: 'thin' }, right: { style: 'thin' },
+      }
     })
-    const BOM = '\uFEFF'
-    const csv = BOM + [headers.join(','), ...rows.map(r => r.map(c => `"${(c||'').replace(/"/g,'""')}"`).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+
+    // Data rows (row height 40pt)
+    filtered.forEach((c, idx) => {
+      const row = ws.getRow(4 + idx)
+      row.height = 40
+      const styleShort = c.stylePreference === '意式极简' ? '意式' : c.stylePreference === '法式风格' ? '法式' : c.stylePreference
+      const cells = [
+        idx + 1,                                              // 序号
+        c.recordDate ? c.recordDate.split('-').slice(1).map(s => parseInt(s)).join('.') : '',  // 日期: 6.26
+        c.name,                                               // 业主姓名
+        c.city || '',                                          // 地区
+        c.community || '',                                     // 小区
+        c.houseArea || '',                                     // 面积
+        styleShort || c.stylePreference || '',                 // 风格
+        c.followUpDate ? c.followUpDate.split('-').slice(1).map(s => parseInt(s)).join('.') : '',  // 跟进时间
+        c.followUpNote || '',                                  // 跟进情况
+      ]
+      cells.forEach((v, i) => {
+        const cell = row.getCell(i + 1)
+        cell.value = v
+        cell.font = { name: '微软雅黑', size: 10 }
+        cell.alignment = { horizontal: i === 8 ? 'left' : 'center', vertical: 'top', wrapText: true }
+        cell.border = {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' },
+        }
+      })
+    })
+
+    const buf = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `客户列表_${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    a.href = url; a.download = `客户信息表_${new Date().toISOString().split('T')[0]}.xlsx`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -90,6 +154,32 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
         <div className="crm-toolbar-left">
           <Search size={14} style={{ opacity: 0.4 }} />
           <input className="crm-search" placeholder="搜索客户、微信名、电话、户型…" value={search} onChange={e => setSearch(e.target.value)} />
+          {/* Quick filters */}
+          <div className="crm-filter-btns">
+            {[
+              ['全部', null],
+              ['本周', 'thisWeek'],
+              ['下周', 'nextWeek'],
+              ['近7天', '7d'],
+              ['近14天', '14d'],
+            ].map(([label, key]) => {
+              const active = key === 'thisWeek' ? !!followUpFilter && followUpFilter.start === thisWeekStart
+                : key === 'nextWeek' ? !!followUpFilter && followUpFilter.start === thisWeekEnd2
+                : key === '7d' ? !!followUpFilter && followUpFilter.start === daysFromNow(0) && followUpFilter.end === daysFromNow(6)
+                : key === '14d' ? !!followUpFilter && followUpFilter.start === daysFromNow(0) && followUpFilter.end === daysFromNow(13)
+                : !followUpFilter
+              return (
+                <button key={key!} className={`crm-filter-btn ${active ? 'active' : ''}`}
+                  onClick={() => {
+                    if (key === 'thisWeek') setFollowUpFilter({ start: thisWeekStart, end: thisWeekEnd })
+                    else if (key === 'nextWeek') setFollowUpFilter({ start: thisWeekEnd2, end: nextWeekEnd })
+                    else if (key === '7d') setFollowUpFilter({ start: daysFromNow(0), end: daysFromNow(6) })
+                    else if (key === '14d') setFollowUpFilter({ start: daysFromNow(0), end: daysFromNow(13) })
+                    else setFollowUpFilter(null)
+                  }}>{label}</button>
+              )
+            })}
+          </div>
           {followUpFilter && (
             <span className="crm-filter-chip">
               📅 {followUpFilter.start} ~ {followUpFilter.end}

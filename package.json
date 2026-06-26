@@ -1,6 +1,6 @@
 {
   "name": "ai-web-tools",
-  "version": "3.12.10",
+  "version": "3.13.2",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^1.7.9",
     "dexie": "^4.4.4",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.40.0",
     "fuse.js": "^7.4.2",
     "lucide-react": "^0.468.0",

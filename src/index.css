@@ -2846,6 +2846,16 @@ textarea.input-base {
 }
 .crm-filter-chip button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; display: flex; }
 
+/* CRM Filter Quick Buttons */
+.crm-filter-btns { display: flex; gap: 4px; }
+.crm-filter-btn {
+  padding: 3px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
+  border: 1px solid var(--border-color); background: transparent; color: var(--text-secondary);
+  white-space: nowrap; transition: all .15s;
+}
+.crm-filter-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.crm-filter-btn.active { background: rgba(99,102,241,0.12); color: var(--accent); border-color: var(--accent); }
+
 /* CRM Buttons */
 .crm-btn-primary {
   display: inline-flex; align-items: center; gap: 5px;
