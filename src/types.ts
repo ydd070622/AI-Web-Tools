@@ -222,6 +222,13 @@ declare global {
         tenant?: string
         error?: string
       }>
+      // CRM Sync
+      syncStatus: () => Promise<{ configured: boolean; gistId: string; lastSyncAt: string }>
+      syncCreate: (token: string) => Promise<{ gistId?: string; error?: string }>
+      syncConnect: (token: string, gistId: string) => Promise<{ ok: boolean; error?: string }>
+      syncUpload: () => Promise<{ ok: boolean; error?: string }>
+      syncDownload: () => Promise<{ ok: boolean; error?: string; data?: any }>
+      syncUnbind: () => Promise<{ ok: boolean }>
     }
   }
 }

@@ -19,6 +19,9 @@ import './tool-handlers'
 // Feishu CLI IPC handlers
 import './ipc/feishu'
 
+// CRM Sync (GitHub Gist)
+import { registerSync } from './ipc/sync'
+
 // Auto-updater
 import { checkForUpdates, registerUpdateIPC } from './updater'
 
@@ -84,6 +87,7 @@ function createWindow() {
   toolsRef = registerTools(mainWindow) || null
   registerTranslate()
   registerWeChatBot()
+  registerSync()
 
   // Download management
   const { activeDownloads, trackSession } = registerDownload(mainWindow)

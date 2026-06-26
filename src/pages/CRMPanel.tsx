@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
+import { CloudUpload, CloudDownload } from 'lucide-react'
 import type { CRMData, Customer, EnrichedCustomer, FollowUp } from '../crm/types'
 import { STAGES, SOURCES, TABS, STORAGE_KEY } from '../crm/constants'
 import { today as todayStr, daysDiff } from '../crm/helpers'
@@ -20,6 +21,8 @@ export default function CRMPanel() {
   const [editingContract, setEditingContract] = useState(false)
   const [viewingContract, setViewingContract] = useState<Customer | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [syncStatus, setSyncStatus] = useState({ configured: false, lastSyncAt: '' })
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -66,6 +69,11 @@ export default function CRMPanel() {
         }
       }
       setLoaded(true)
+      // Check sync status
+      if (window.electronAPI?.syncStatus) {
+        const ss = await window.electronAPI.syncStatus()
+        setSyncStatus(ss)
+      }
     }
     load()
   }, [])
@@ -150,6 +158,46 @@ export default function CRMPanel() {
 
   if (!loaded) return <div className="crm-loading">加载中...</div>
 
+  const handleSyncUpload = async () => {
+    if (syncing || !syncStatus.configured) return
+    setSyncing(true)
+    try {
+      const result = await window.electronAPI!.syncUpload()
+      if (result?.ok) {
+        toast.success('已上传到云端 ✓')
+        setSyncStatus(s => ({ ...s, lastSyncAt: new Date().toISOString() }))
+      } else {
+        toast.error(result?.error || '上传失败')
+      }
+    } catch (e: any) {
+      toast.error(`上传异常: ${e.message}`)
+    } finally { setSyncing(false) }
+  }
+
+  const handleSyncDownload = async () => {
+    if (syncing || !syncStatus.configured) return
+    setSyncing(true)
+    try {
+      const result = await window.electronAPI!.syncDownload()
+      if (result?.ok) {
+        toast.success('已从云端下载 ✓')
+        setSyncStatus(s => ({ ...s, lastSyncAt: new Date().toISOString() }))
+        // Reload CRM data
+        window.location.reload()
+      } else {
+        toast.error(result?.error || '下载失败')
+      }
+    } catch (e: any) {
+      toast.error(`下载异常: ${e.message}`)
+    } finally { setSyncing(false) }
+  }
+
+  const fmtSyncTime = (iso: string) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  }
+
   const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab }
 
   const sidebarItems = [
@@ -179,6 +227,21 @@ export default function CRMPanel() {
             )
           })}
         </div>
+        {syncStatus.configured && (
+          <div className="crm-sidebar-sync">
+            <div className="crm-sidebar-sync-row">
+              <button className="crm-sidebar-sync-btn upload" onClick={handleSyncUpload} disabled={syncing} title="上传到云端">
+                <CloudUpload size={13} /><span>上传</span>
+              </button>
+              <button className="crm-sidebar-sync-btn download" onClick={handleSyncDownload} disabled={syncing} title="从云端下载">
+                <CloudDownload size={13} /><span>下载</span>
+              </button>
+            </div>
+            {syncStatus.lastSyncAt && (
+              <div className="crm-sidebar-sync-time">已同步 {fmtSyncTime(syncStatus.lastSyncAt)}</div>
+            )}
+          </div>
+        )}
       </div>
       <div className="crm-main">
         <div className="crm-content">

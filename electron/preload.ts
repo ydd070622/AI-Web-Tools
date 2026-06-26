@@ -167,4 +167,11 @@ window.electronAPI = {
     ipcRenderer.on('wx-bot-message', h)
     return () => { ipcRenderer.removeListener('wx-bot-message', h) }
   },
+  // CRM Sync (GitHub Gist)
+  syncCreate: (token: string) => ipcRenderer.invoke('sync-create', token),
+  syncConnect: (token: string, gistId: string) => ipcRenderer.invoke('sync-connect', token, gistId),
+  syncUpload: () => ipcRenderer.invoke('sync-upload'),
+  syncDownload: () => ipcRenderer.invoke('sync-download'),
+  syncStatus: () => ipcRenderer.invoke('sync-status'),
+  syncUnbind: () => ipcRenderer.invoke('sync-unbind'),
 }

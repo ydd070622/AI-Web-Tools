@@ -1,6 +1,6 @@
 {
   "name": "ai-web-tools",
-  "version": "3.10.20",
+  "version": "3.11.1",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {

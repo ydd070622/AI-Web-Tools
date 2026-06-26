@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, Trash2, Pencil, Settings2, Image, Bot, Key, Command, Info, Loader2, FolderOpen, Search, ArrowLeft, Wifi, ChevronDown, Download, PlugZap, MessageCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { X, Plus, Trash2, Pencil, Settings2, Image, Bot, Key, Command, Info, Loader2, FolderOpen, Search, ArrowLeft, Wifi, ChevronDown, Download, PlugZap, MessageCircle, Cloud } from 'lucide-react'
 import type { CustomModel, ShortcutBindings, AgentModel } from '../types'
 import { AGENT_PROVIDERS, loadModels as loadAgentModels, saveModels as saveAgentModels, fetchProviderModels, generateId, getProviderEndpoint } from '../services/agent'
 import { clearCityCache } from '../services/agent-loop'
@@ -13,7 +14,7 @@ interface SettingsProps {
   onNavigate?: (id: string) => void
 }
 
-type TabId = 'general' | 'image-models' | 'agent-models' | 'tavily' | 'shortcuts' | 'about'
+type TabId = 'general' | 'image-models' | 'agent-models' | 'wechat' | 'tavily' | 'shortcuts' | 'sync' | 'about'
 
 const SHORTCUT_TARGETS: { id: string; label: string }[] = [
   { id: 'liblib', label: 'Lib tv' },
@@ -117,6 +118,13 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
   const [tavilyKey, setTavilyKey] = useState('')
   const [tavilySaved, setTavilySaved] = useState(false)
 
+  // --- Sync ---
+  const [syncToken, setSyncToken] = useState('')
+  const [syncGistId, setSyncGistId] = useState('')
+  const [syncLastAt, setSyncLastAt] = useState('')
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncManualGistId, setSyncManualGistId] = useState('')
+
   // --- Shortcuts ---
   const [shortcuts, setShortcuts] = useState<ShortcutBindings>({})
   const [recordingTarget, setRecordingTarget] = useState<string | null>(null)
@@ -157,6 +165,16 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
         }
         if (typeof savedTavily === 'string') setTavilyKey(savedTavily)
         else setTavilyKey(localStorage.getItem('agent_tavily_key') || '')
+        // Sync status
+        if (window.electronAPI?.syncStatus) {
+          const ss = await window.electronAPI.syncStatus()
+          if (ss.configured) {
+            setSyncGistId(ss.gistId)
+            setSyncLastAt(ss.lastSyncAt)
+            const t = await window.electronAPI.getStore('syncToken')
+            if (t) setSyncToken(t)
+          }
+        }
         if (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') setTheme(savedTheme)
         if (typeof savedAutoLaunch === 'boolean') setAutoLaunch(savedAutoLaunch)
         if (typeof savedStartMinimized === 'boolean') setStartMinimized(savedStartMinimized)
@@ -404,6 +422,7 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
     { id: 'wechat', label: '微信', icon: <MessageCircle size={16} /> },
     { id: 'tavily', label: 'Tavily', icon: <Search size={16} /> },
     { id: 'shortcuts', label: '快捷键', icon: <Command size={16} /> },
+    { id: 'sync', label: '数据同步', icon: <Cloud size={16} /> },
     { id: 'about', label: '关于', icon: <Info size={16} /> },
   ]
 
@@ -972,6 +991,125 @@ export default function Settings({ models, onSave, onClose }: SettingsProps) {
                   {shortcutSaved && <span style={{ fontSize: 11, color: 'var(--success)' }}>✅ 已保存</span>}
                 </div>
               </>
+            )}
+
+            {/* ========== 数据同步 ========== */}
+            {activeTab === 'sync' && (
+              <div style={{ maxWidth: 500 }}>
+                <div className="glass-card" style={{ padding: 20 }}>
+                  <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>GitHub Gist 数据同步</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                    通过 GitHub Gist 同步 CRM 数据。支持上传/下载，多台电脑共享客户信息。
+                  </p>
+
+                  {syncGistId ? (
+                    <>
+                      <div className="crm-form-group" style={{ marginBottom: 12 }}>
+                        <label className="crm-form-label">状态</label>
+                        <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>✓ 已配置</span>
+                      </div>
+                      <div className="crm-form-group" style={{ marginBottom: 12 }}>
+                        <label className="crm-form-label">Gist ID</label>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{syncGistId}</span>
+                      </div>
+                      {syncLastAt && (
+                        <div className="crm-form-group" style={{ marginBottom: 16 }}>
+                          <label className="crm-form-label">最近同步</label>
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{syncLastAt.slice(0,16).replace('T',' ')}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                        <button className="crm-btn-primary" style={{ fontSize: 12, gap: 6, display: 'flex', alignItems: 'center' }}
+                          disabled={syncLoading}
+                          onClick={async () => {
+                            setSyncLoading(true)
+                            try {
+                              const r = await window.electronAPI!.syncUpload()
+                              if (r?.ok) { toast.success('已上传到云端 ✓'); setSyncLastAt(new Date().toISOString()) }
+                              else toast.error(r?.error || '上传失败')
+                            } catch (e: any) { toast.error(e.message) }
+                            setSyncLoading(false)
+                          }}>上传到云端</button>
+                        <button className="btn btn-ghost" style={{ fontSize: 12 }}
+                          disabled={syncLoading}
+                          onClick={async () => {
+                            setSyncLoading(true)
+                            try {
+                              const r = await window.electronAPI!.syncDownload()
+                              if (r?.ok) { toast.success('已下载 ✓'); location.reload() }
+                              else toast.error(r?.error || '下载失败')
+                            } catch (e: any) { toast.error(e.message) }
+                            setSyncLoading(false)
+                          }}>从云端下载</button>
+                      </div>
+                      <button className="crm-btn-ghost crm-btn-danger" style={{ fontSize: 12 }}
+                        onClick={async () => {
+                          if (!confirm('确定解除同步绑定？此操作不会删除 Gist，仅解除本地配置。')) return
+                          await window.electronAPI!.syncUnbind()
+                          setSyncToken(''); setSyncGistId(''); setSyncLastAt('')
+                          toast.success('已解除绑定')
+                        }}>解除绑定</button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="crm-form-group" style={{ marginBottom: 12 }}>
+                        <label className="crm-form-label">GitHub Personal Access Token</label>
+                        <input className="crm-form-input" type="password" value={syncToken}
+                          onChange={e => setSyncToken(e.target.value)}
+                          placeholder="ghp_xxxxxxxxxxxx"
+                        />
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                          去 github.com/settings/tokens 生成，勾选 <b>gist</b> 权限
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                        <button className="crm-btn-primary" style={{ fontSize: 12 }}
+                          disabled={!syncToken.trim() || syncLoading}
+                          onClick={async () => {
+                            setSyncLoading(true)
+                            try {
+                              const r = await window.electronAPI!.syncCreate(syncToken.trim())
+                              if (r?.gistId) {
+                                setSyncGistId(r.gistId)
+                                setSyncLastAt(new Date().toISOString())
+                                toast.success('同步已创建 ✓')
+                              } else {
+                                toast.error(r?.error || '创建失败')
+                              }
+                            } catch (e: any) { toast.error(e.message) }
+                            setSyncLoading(false)
+                          }}>创建新同步</button>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center' }}>或</span>
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 12, marginBottom: 12 }}>
+                        <label className="crm-form-label" style={{ marginBottom: 6 }}>关联已有 Gist（另一台电脑已创建）</label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input className="crm-form-input" style={{ flex: 1 }} value={syncManualGistId}
+                            onChange={e => setSyncManualGistId(e.target.value)}
+                            placeholder="粘贴 Gist ID"
+                          />
+                          <button className="btn btn-ghost" style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                            disabled={!syncToken.trim() || !syncManualGistId.trim() || syncLoading}
+                            onClick={async () => {
+                              setSyncLoading(true)
+                              try {
+                                const r = await window.electronAPI!.syncConnect(syncToken.trim(), syncManualGistId.trim())
+                                if (r?.ok) {
+                                  setSyncGistId(syncManualGistId.trim())
+                                  setSyncLastAt(new Date().toISOString())
+                                  toast.success('已关联 Gist ✓')
+                                } else {
+                                  toast.error(r?.error || '关联失败')
+                                }
+                              } catch (e: any) { toast.error(e.message) }
+                              setSyncLoading(false)
+                            }}>关联 Gist</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* ========== 关于 ========== */}
