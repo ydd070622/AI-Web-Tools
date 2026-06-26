@@ -511,6 +511,7 @@ const TOOL_DEFS = [
         '- 张三（惠州）逾期2天，尽快联系。\\n' +
         '- 李四（深圳）6月29日到期。\\n\\n' +
         '⚠️ 表格列顺序固定：客户|地区|小区|面积|风格|跟进|下次跟进时间|跟进情况\n' +
+        '⚠️ 表格格式：用 | 分隔列即可，如 |客户|地区| 或 客户|地区| 都行，系统自动转对齐\n' +
         '⚠️ 风格格式：喜欢风格(归属账号)，无数据用"—"\n' +
         '⚠️ 跟进列：逾期🔴逾期X天 / 今天🟢今天 / 未来🟡X天后\n' +
         '⚠️ 表格每行末尾必须有 | 和 \\n，否则不能识别为表格行',
@@ -518,7 +519,7 @@ const TOOL_DEFS = [
         type: 'object',
         properties: {
           title: { type: 'string', description: '消息标题' },
-          content: { type: 'string', description: '纯文本正文。表格用 | 分隔列，行间用 \\n 换行。禁止思考过程，只放最终结果' },
+          content: { type: 'string', description: '纯文本正文。表格用 | 分隔列（如 |客户|地区| 或 客户|地区|），行间 \\n 换行。禁止思考过程，只放最终结果' },
         },
         required: ['title', 'content'],
       },
@@ -935,13 +936,19 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
 
       function isPipeRow(line: string) {
         const t = line.trim()
-        return t.startsWith('|') && t.endsWith('|')
+        // Flexible: any line with 2+ pipe separators is a table row
+        return (t.match(/\|/g) || []).length >= 2
       }
 
       function splitPipeRow(line: string): string[] | null {
         const t = line.trim()
-        if (!t.startsWith('|') || !t.endsWith('|')) return null
-        const cells = t.split('|').slice(1, -1).map(c => c.trim())
+        const pipeCount = (t.match(/\|/g) || []).length
+        if (pipeCount < 1) return null
+        // Strip leading/trailing | if present, then split
+        let inner = t
+        if (inner.startsWith('|')) inner = inner.slice(1)
+        if (inner.endsWith('|')) inner = inner.slice(0, -1)
+        const cells = inner.split('|').map(c => c.trim())
         if (cells.length < 2) return null
         if (cells.every(c => /^[-:]+$/.test(c))) return null // separator row
         return cells
