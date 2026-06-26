@@ -495,31 +495,28 @@ const TOOL_DEFS = [
       name: 'wechat_push',
       description:
         '推送消息到用户的微信。' +
-        '当用户要求"推送到微信"、"微信通知我"、"发到微信"时使用此工具。\n' +
-        '⚠️ 微信仅支持纯文本。系统会自动将 Markdown 表格转为对齐文本。\n\n' +
-        '📋 客户跟进统计输出规范（严格执行）：\n' +
-        '1. 正文只能是最终结果，禁止任何思考过程、开场白。\n' +
-        '2. 表格必须用管道符 | 分隔列，每行用 \\n 换行。系统自动转对齐文本。\n' +
-        '3. 表格后接"重点关注"要点。\n\n' +
-        '标准格式示例：\n' +
-        '当前共有 2位客户 需要跟进，具体情况如下：\\n\\n' +
-        '| 客户 | 地区 | 小区 | 面积 | 风格 | 跟进 | 下次跟进时间 | 跟进情况 |\\n' +
-        '|------|------|------|------|------|------|-------------|----------|\\n' +
-        '| 张三 | 惠州 | — | 120㎡ | 意式极简(守一意式) | 🔴逾期2天 | 2026-06-23 | — |\\n' +
-        '| 李四 | 深圳 | 万科城 | 89㎡ | 法式风格(守中法式) | 🟡3天后 | 2026-06-29 | 客户在香港 |\\n\\n' +
-        '重点关注：\\n' +
-        '- 张三（惠州）逾期2天，尽快联系。\\n' +
-        '- 李四（深圳）6月29日到期。\\n\\n' +
-        '⚠️ 表格列顺序固定：客户|地区|小区|面积|风格|跟进|下次跟进时间|跟进情况\n' +
-        '⚠️ 表格格式：用 | 分隔列即可，如 |客户|地区| 或 客户|地区| 都行，系统自动转对齐\n' +
+        '当用户要求"推送到微信"、"微信通知我"、"发到微信"时使用此工具。\n\n' +
+        '📋 输出格式（严格执行）：\n' +
+        '1. 禁止思考过程，正文只放最终结果\n' +
+        '2. 数据必须用管道符表格（每行以 | 开头、以 | 结尾、列间用 | 分隔、行间真实换行）\n' +
+        '3. 表格后接"重点关注"要点\n\n' +
+        '✅ 正确格式（唯一的表格写法）：\n' +
+        '当前共有 2位客户 需要跟进，具体情况如下：\n\n' +
+        '| 客户 | 地区 | 小区 | 面积 | 风格 | 跟进 | 下次跟进时间 | 跟进情况 |\n' +
+        '|------|------|------|------|------|------|-------------|----------|\n' +
+        '| 张三 | 惠州 | — | 120㎡ | 意式极简(守一意式) | 🔴逾期2天 | 2026-06-23 | — |\n' +
+        '| 李四 | 深圳 | 万科城 | 89㎡ | 法式风格(守中法式) | 🟡3天后 | 2026-06-29 | 客户在香港 |\n\n' +
+        '重点关注：\n' +
+        '- 张三（惠州）逾期2天，尽快联系。\n\n' +
+        '⚠️ 表格列顺序：客户|地区|小区|面积|风格|跟进|下次跟进时间|跟进情况\n' +
         '⚠️ 风格格式：喜欢风格(归属账号)，无数据用"—"\n' +
-        '⚠️ 跟进列：逾期🔴逾期X天 / 今天🟢今天 / 未来🟡X天后\n' +
-        '⚠️ 表格每行末尾必须有 | 和 \\n，否则不能识别为表格行',
+        '⚠️ 跟进：🔴逾期X天 / 🟢今天 / 🟡X天后\n' +
+        '⚠️ 每行必须 | 开头 | 结尾，否则微信上不是表格',
       parameters: {
         type: 'object',
         properties: {
           title: { type: 'string', description: '消息标题' },
-          content: { type: 'string', description: '纯文本正文。表格用 | 分隔列（如 |客户|地区| 或 客户|地区|），行间 \\n 换行。禁止思考过程，只放最终结果' },
+          content: { type: 'string', description: '正文。表格必须每行 |开头|结尾，列间|分隔，行间真实换行。禁止思考过程' },
         },
         required: ['title', 'content'],
       },
@@ -887,14 +884,14 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
     return JSON.stringify({ error: `工具参数解析失败: ${argsStr.slice(0, 100)}` })
     }
 
-    // ===== Helper: convert Markdown/HTML to WeChat plain-text with aligned tables =====
+    // ===== Helper: convert Markdown/HTML to WeChat plain-text with pipe tables =====
     function convertToWeChatText(html: string): string {
       let text = html
-      // 1. Unescape JSON-escaped newlines (LLM sometimes sends \\n instead of real \n)
+      // 1. Unescape JSON-escaped newlines
       text = text.replace(/\\n/g, '\n')
       // 2. <br> → newline
       text = text.replace(/<br\s*\/?>/gi, '\n')
-      // 3. HTML table → pipe-separated format
+      // 3. HTML table → pipe-separated rows
       text = text.replace(/<\/tr>/gi, '\n')
       text = text.replace(/<tr[^>]*>/gi, '')
       text = text.replace(/<\/t[dh]>/gi, ' | ')
@@ -907,93 +904,50 @@ async function executeTool(tc: ToolCall, options?: AgentChatOptions, signal?: Ab
       text = text.replace(/&nbsp;/gi, ' ')
       // 6. **bold** → ■bold■
       text = text.replace(/\*\*(.+?)\*\*/g, '■$1■')
-      // 7. ### headers → plain text
+      // 7. ### → plain text
       text = text.replace(/^#{1,3}\s+/gm, '')
       // 8. Collapse 3+ newlines
       text = text.replace(/\n{3,}/g, '\n\n')
 
-      // 9. Detect & format tables (pipe-separated OR space-aligned)
+      // 9. Convert space-separated tables to pipe format; keep pipe tables as-is
       const lines = text.split('\n')
       const out: string[] = []
-      let tableBuf: string[][] = []
-      let tableMode: 'pipe' | 'space' | null = null
+      let spaceBuf: string[][] = []   // accumulating space-separated table rows
 
-      function flushTable() {
-        if (tableBuf.length === 0) return
-        const colWidths: number[] = []
-        for (const row of tableBuf) {
-          for (let i = 0; i < row.length; i++) {
-            colWidths[i] = Math.max(colWidths[i] || 0, row[i].length)
-          }
-        }
-        for (const row of tableBuf) {
-          out.push(row.map((c, i) => c.padEnd(colWidths[i] || 0, ' ')).join('  '))
+      function flushSpaceBuf() {
+        if (spaceBuf.length === 0) return
+        // Output as pipe-separated rows
+        for (const row of spaceBuf) {
+          out.push('| ' + row.join(' | ') + ' |')
         }
         out.push('')
-        tableBuf = []
-        tableMode = null
-      }
-
-      function isPipeRow(line: string) {
-        const t = line.trim()
-        // Flexible: any line with 2+ pipe separators is a table row
-        return (t.match(/\|/g) || []).length >= 2
-      }
-
-      function splitPipeRow(line: string): string[] | null {
-        const t = line.trim()
-        const pipeCount = (t.match(/\|/g) || []).length
-        if (pipeCount < 1) return null
-        // Strip leading/trailing | if present, then split
-        let inner = t
-        if (inner.startsWith('|')) inner = inner.slice(1)
-        if (inner.endsWith('|')) inner = inner.slice(0, -1)
-        const cells = inner.split('|').map(c => c.trim())
-        if (cells.length < 2) return null
-        if (cells.every(c => /^[-:]+$/.test(c))) return null // separator row
-        return cells
-      }
-
-      function splitSpaceRow(line: string): string[] | null {
-        // Split by 2+ spaces to get columns
-        const parts = line.split(/[ ]{2,}/)
-        if (parts.length < 3) return null
-        return parts.map(c => c.trim())
+        spaceBuf = []
       }
 
       for (const line of lines) {
-        // Try pipe format first
-        const pipeCells = splitPipeRow(line)
-        if (pipeCells && (tableMode === 'pipe' || tableMode === null)) {
-          tableMode = 'pipe'
-          tableBuf.push(pipeCells)
+        const t = line.trim()
+        // Already a pipe row → keep as-is
+        if (t.includes('|')) {
+          flushSpaceBuf()
+          out.push(line)
           continue
         }
-
-        // Try space-aligned format (only if not already in pipe mode)
-        if (tableMode !== 'pipe') {
-          const spaceCells = splitSpaceRow(line)
-          if (spaceCells && (tableMode === 'space' || tableMode === null)) {
-            // Verify it looks like a table: at least 4 columns, or has consistent column count with buffer
-            if (spaceCells.length >= 4 || (tableBuf.length > 0 && spaceCells.length === tableBuf[0].length)) {
-              tableMode = 'space'
-              tableBuf.push(spaceCells)
-              continue
-            }
-          }
+        // Space-separated table: 4+ columns (split by 2+ spaces)
+        const cells = t.split(/[ ]{2,}/).filter(c => c.length > 0)
+        if (cells.length >= 4) {
+          spaceBuf.push(cells)
+          continue
         }
-
-        // Not a table row — flush and output as-is
-        flushTable()
+        // End of space table (fewer columns)
+        flushSpaceBuf()
         out.push(line)
       }
-      flushTable()
+      flushSpaceBuf()
 
       text = out.join('\n')
-
-      // 10. Trim trailing spaces (preserving alignment), trim overall
-      text = text.split('\n').map(l => l.trimEnd()).join('\n').trim()
-      // 11. Limit length for WeChat
+      // 10. Trim overall
+      text = text.trim()
+      // 11. Limit for WeChat
       if (text.length > 2000) text = text.slice(0, 2000) + '…'
       return text
     }
