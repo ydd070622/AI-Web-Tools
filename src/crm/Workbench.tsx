@@ -5,19 +5,14 @@ import type { SharedProps, FollowUp, Customer } from './types'
 import { avatarGrad, fmtDate } from './helpers'
 import { TAG_COLORS } from './constants'
 
-type Urgency = 'urgent' | 'normal' | 'calm'
+type SubKey = 'overdue' | 'today' | 'tomorrow' | 'dayAfter'
+type MajorKey = 'normal' | 'calm'
 
-function getUrgency(days: number | null): Urgency {
-  if (days === null) return 'calm'
-  if (days <= 3) return 'urgent'
-  if (days <= 7) return 'normal'
-  return 'calm'
-}
-
-function urgencyLabel(u: Urgency) {
-  if (u === 'urgent') return { emoji: '🔴', text: '紧急' }
-  if (u === 'normal') return { emoji: '🟡', text: '一般' }
-  return { emoji: '🟢', text: '不急' }
+function subLabel(key: SubKey) {
+  if (key === 'overdue')  return { emoji: '⚠', text: '已逾期',   dotColor: '#ef4444', cardClass: 'overdue' }
+  if (key === 'today')    return { emoji: '📍', text: '今天跟进', dotColor: '#f97316', cardClass: 'today' }
+  if (key === 'tomorrow') return { emoji: '📅', text: '明天跟进', dotColor: '#eab308', cardClass: 'tomorrow' }
+  return { emoji: '📅', text: '后天跟进', dotColor: '#22c55e', cardClass: 'dayAfter' }
 }
 
 export default function Workbench({ data, followUps, closedCusts, updateCust, setEditingCustomer, setTab, setFollowUpFilter }: SharedProps) {
@@ -49,29 +44,39 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
     return Math.round(diff / 86400000)
   }
 
-  // Group by urgency
-  const groupByUrgency = (list: (Customer & { diff: number })[]) => {
-    const groups: Record<Urgency, (Customer & { diff: number })[]> = { urgent: [], normal: [], calm: [] }
-    list.forEach(c => {
-      const d = daysUntil(c.followUpDate)
-      groups[getUrgency(d)].push(c)
-    })
-    return groups
+  // Group by due date
+  type FuEntry = Customer & { diff: number }
+  const allFUs: FuEntry[] = followUps.map(c => ({
+    ...c,
+    diff: daysUntil(c.followUpDate) ?? 999,
+  }))
+
+  const groups = {
+    overdue:  allFUs.filter(c => c.diff < 0),
+    today:    allFUs.filter(c => c.diff === 0),
+    tomorrow: allFUs.filter(c => c.diff === 1),
+    dayAfter: allFUs.filter(c => c.diff === 2),
+    normal:   allFUs.filter(c => c.diff >= 3 && c.diff <= 7),
+    calm:     allFUs.filter(c => c.diff > 7),
   }
 
-  const fuGroups = groupByUrgency(followUps)
-  // Add customers without follow-up date to "calm" group
+  // Customers without follow-up date → "calm"
   const noDateCusts = data.customers.filter(c => !c.followUpDate && c.stage !== 'closed')
   if (noDateCusts.length > 0) {
-    fuGroups.calm = [...fuGroups.calm, ...noDateCusts.map(c => ({ ...c, diff: 999 }))]
+    groups.calm = [...groups.calm, ...noDateCusts.map(c => ({ ...c, diff: 999 }))]
   }
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const urgentCount = groups.overdue.length + groups.today.length + groups.tomorrow.length + groups.dayAfter.length
+
+  const subKeys: SubKey[] = ['overdue', 'today', 'tomorrow', 'dayAfter']
+
+  const [collapsedUrgent, setCollapsedUrgent] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ normal: false, calm: false })
   const [expandedFuId, setExpandedFuId] = useState<string | null>(null)
   const [fuNote, setFuNote] = useState('')
   const [fuDate, setFuDate] = useState('')
 
-  const toggleGroup = (key: string) => setCollapsedGroups(s => ({ ...s, [key]: !s[key] }))
+  const toggleMajor = (key: string) => setCollapsedGroups(s => ({ ...s, [key]: !s[key] }))
 
   const openFU = (id: string, _note: string, date: string) => {
     if (expandedFuId === id) { setExpandedFuId(null); return }
@@ -131,38 +136,49 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
   const monthLabel = (d: string) => `${parseInt(d.split('-')[1])}月`
   const dayNum = (d: string) => d.split('-')[2]
 
-  const renderCard = (c: Customer) => {
+  const diffBadge = (diff: number): string | null => {
+    if (diff < 0) return `逾期 ${Math.abs(diff)} 天`
+    if (diff === 0) return '今天'
+    if (diff === 1) return '明天'
+    if (diff === 2) return '后天'
+    return null
+  }
+
+  const renderCard = (c: FuEntry, cardClass: string) => {
     const [g1, g2] = avatarGrad(c.name)
-    const urgency = getUrgency(daysUntil(c.followUpDate))
     const dateRaw = c.followUpDate
     const isOpen = expandedFuId === c.id
+    const badge = diffBadge(c.diff)
 
     return (
       <div key={c.id}>
-        <div className={`wb-v2-card ${urgency}`}
+        <div className={`wb-v3-card ${cardClass}`}
           onClick={() => setEditingCustomer(c)}
           title="点击编辑客户信息"
         >
-          <div className="wb-v2-card-date">
-            <div className="wb-v2-card-day">{dateRaw ? dayNum(dateRaw) : '—'}</div>
-            <div className="wb-v2-card-mon">{dateRaw ? `${monthLabel(dateRaw)} · ${weekdayName(dateRaw)}` : '待定'}</div>
+          <div className="wb-v3-card-date">
+            <div className="wb-v3-card-day">{dateRaw ? dayNum(dateRaw) : '—'}</div>
+            <div className="wb-v3-card-mon">{dateRaw ? `${monthLabel(dateRaw)} · ${weekdayName(dateRaw)}` : '待定'}</div>
           </div>
-          <div className="wb-v2-card-info">
-            <div className="wb-v2-card-top">
-              <div className="wb-v2-card-av" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>
-              <span className="wb-v2-card-name">{c.name}</span>
-              {c.city && <span className="wb-v2-card-city">{c.city}</span>}
+          <div className="wb-v3-card-info">
+            <div className="wb-v3-card-top">
+              <div className="wb-v3-card-av" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>
+              <span className="wb-v3-card-name">{c.name}</span>
+              {c.city && <span className="wb-v3-card-city">{c.city}</span>}
               {c.stylePreference && (
-                <span className="wb-v2-card-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>
+                <span className="wb-v3-card-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>
                   {c.stylePreference === '意式极简' ? '意式' : c.stylePreference === '法式风格' ? '法式' : c.stylePreference}
                 </span>
               )}
             </div>
-            <div className="wb-v2-card-note">{c.followUpNote || '暂无跟进备注'}</div>
+            <div className="wb-v3-card-note">{c.followUpNote || '暂无跟进备注'}</div>
           </div>
-          <button className="wb-v2-card-btn" onClick={e => { e.stopPropagation(); markDone(c.id) }}>
-            完成跟进
-          </button>
+          <div className="wb-v3-card-footer">
+            {badge && <span className={`wb-v3-card-badge ${cardClass}`}>{badge}</span>}
+            <button className="wb-v3-card-btn" onClick={e => { e.stopPropagation(); markDone(c.id) }}>
+              完成跟进
+            </button>
+          </div>
         </div>
         <AnimatePresence>
           {isOpen && (
@@ -188,8 +204,6 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
     )
   }
 
-  const urgencyKeys: Urgency[] = ['urgent', 'normal', 'calm']
-
   return (
     <div className="wb-v3">
 
@@ -213,35 +227,81 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
         </div>
       </div>
 
-      {/* Follow-up Cards grouped by urgency */}
-      <div className="wb-v2-body">
-        {urgencyKeys.map(key => {
-          const list = fuGroups[key] || []
-          const label = urgencyLabel(key)
-          const collapsed = collapsedGroups[key] || false
-          return (
-            <div key={key} className="wb-v2-group">
-              <div className="wb-v2-group-head" onClick={() => toggleGroup(key)}>
-                <span className="wb-v2-group-dot" style={{ background: key === 'urgent' ? '#ef4444' : key === 'normal' ? '#f59e0b' : '#6b7280' }} />
-                <span className="wb-v2-group-title" style={{ color: key === 'urgent' ? '#f87171' : key === 'normal' ? '#fbbf24' : '#9ca3af' }}>
-                  {label.emoji} {label.text}
-                </span>
-                <span className="wb-v2-group-count">{list.length} 位</span>
-                <span className="wb-v2-group-line" />
-                <span className={`wb-v2-group-arrow ${collapsed ? '' : 'open'}`}>▶</span>
-              </div>
-              {!collapsed && list.length > 0 && (
-                <div className="wb-v2-grid">
-                  {list.map(renderCard)}
-                </div>
-              )}
-              {!collapsed && list.length === 0 && (
-                <div className="wb-v3-empty" style={{ padding: '10px 0' }}>暂无</div>
-              )}
+      {/* Follow-up Cards — v3 grouping */}
+      <div className="wb-v3-body">
+
+        {/* ═══ 🔴 紧急 — 可折叠父组 ═══ */}
+        {urgentCount > 0 && (
+          <div className="wb-v3-group wb-v3-group-major">
+            <div className="wb-v3-group-head wb-v3-group-head-major" onClick={() => setCollapsedUrgent(!collapsedUrgent)}>
+              <span className="wb-v3-group-dot" style={{ background: '#ef4444' }} />
+              <span className="wb-v3-group-title" style={{ color: '#f87171' }}>🔴 紧急</span>
+              <span className="wb-v3-group-count">{urgentCount} 位</span>
+              <span className="wb-v3-group-line" />
+              <span className={`wb-v3-group-arrow ${collapsedUrgent ? '' : 'open'}`}>▶</span>
             </div>
-          )
-        })}
-        {followUps.length === 0 && (
+
+            {!collapsedUrgent && (
+              <div className="wb-v3-urgent-children">
+                {subKeys.map(key => {
+                  const list = groups[key] || []
+                  const label = subLabel(key)
+                  if (list.length === 0) return null
+                  return (
+                    <div key={key} className="wb-v3-sub-group">
+                      <div className="wb-v3-sub-head">
+                        <span className="wb-v3-sub-dot" style={{ background: label.dotColor }} />
+                        {label.emoji} {label.text}
+                        <span className="wb-v3-sub-count">{list.length} 位</span>
+                      </div>
+                      <div className="wb-v3-grid wb-v3-grid-col-4">
+                        {list.map(c => renderCard(c, label.cardClass))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ 🟡 一般 ═══ */}
+        {groups.normal.length > 0 && (
+          <div className="wb-v3-group wb-v3-group-major">
+            <div className="wb-v3-group-head wb-v3-group-head-major" onClick={() => toggleMajor('normal')}>
+              <span className="wb-v3-group-dot" style={{ background: '#f59e0b' }} />
+              <span className="wb-v3-group-title" style={{ color: '#fbbf24' }}>🟡 一般</span>
+              <span className="wb-v3-group-count">{groups.normal.length} 位</span>
+              <span className="wb-v3-group-line" />
+              <span className={`wb-v3-group-arrow ${collapsedGroups.normal ? '' : 'open'}`}>▶</span>
+            </div>
+            {!collapsedGroups.normal && (
+              <div className="wb-v3-grid wb-v3-grid-col-4">
+                {groups.normal.map(c => renderCard(c, 'normal'))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ 🟢 不急 ═══ */}
+        {groups.calm.length > 0 && (
+          <div className="wb-v3-group wb-v3-group-major">
+            <div className="wb-v3-group-head wb-v3-group-head-major" onClick={() => toggleMajor('calm')}>
+              <span className="wb-v3-group-dot" style={{ background: '#6b7280' }} />
+              <span className="wb-v3-group-title" style={{ color: '#9ca3af' }}>🟢 不急</span>
+              <span className="wb-v3-group-count">{groups.calm.length} 位</span>
+              <span className="wb-v3-group-line" />
+              <span className={`wb-v3-group-arrow ${collapsedGroups.calm ? '' : 'open'}`}>▶</span>
+            </div>
+            {!collapsedGroups.calm && (
+              <div className="wb-v3-grid wb-v3-grid-col-4">
+                {groups.calm.map(c => renderCard(c, 'calm'))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {followUps.length === 0 && noDateCusts.length === 0 && (
           <div className="wb-v3-empty">🎉 暂无待跟进客户</div>
         )}
       </div>
