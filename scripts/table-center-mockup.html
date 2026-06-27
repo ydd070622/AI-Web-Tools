@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>表头居中对比 - 客户管理 / 在做项目 / 已做项目</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1b1e; color: #e0e0e0; padding: 24px; }
+
+  h2 { font-size: 14px; margin: 20px 0 10px; color: #a0a0a0; }
+  .compare { display: flex; gap: 16px; }
+  .col { flex: 1; min-width: 0; }
+  .label { font-size: 12px; font-weight: 600; margin-bottom: 6px; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+  .label.before { background: rgba(239,68,68,0.15); color: #f87171; }
+  .label.after  { background: rgba(34,197,94,0.15); color: #4ade80; }
+
+  .table-wrap { background: #1e1f23; border: 1px solid #2f3037; border-radius: 8px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    padding: 10px 12px; border-bottom: 1.5px solid #2f3037;
+    color: #9ca3af; font-weight: 600; font-size: 11px;
+    background: #1a1b1e; white-space: nowrap;
+  }
+  /* 左对齐（现在） */
+  .before thead th { text-align: left; }
+  .before tbody td { text-align: left; padding: 9px 12px; }
+  /* 居中（修改后） */
+  .after thead th { text-align: center; }
+  .after tbody td { text-align: center; padding: 9px 12px; }
+  /* 客户名列左对齐保持 */
+  .after tbody td.name-cell { text-align: left; }
+
+  tbody td { border-bottom: 1px solid rgba(47,48,55,0.4); font-size: 12px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  .av { display: inline-flex; align-items: center; gap: 6px; }
+  .av-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #fff; font-weight: 600; flex-shrink: 0; }
+  .muted { color: #6b7280; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; }
+  .tag-blue { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .tag-purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .tag-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .tag-orange { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .tag-red { background: rgba(239,68,68,0.15); color: #f87171; }
+  .btn { padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #f87171; font-size: 11px; cursor: pointer; }
+  .btn:hover { background: rgba(239,68,68,0.1); }
+
+  .cell-muted { color: #9ca3af; font-size: 11px; }
+  .cell-done { color: #4ade80; font-weight: 500; }
+  .cell-name { font-weight: 500; }
+  .cell-none { color: #4b5563; }
+
+  .des { display: flex; align-items: center; gap: 4px; }
+  .des-dot { width: 16px; padding: 1px 6px; border-radius: 8px; font-size: 10px; color: #fff; }
+  .des-a1 { background: #6366f1; } .des-a2 { background: #8b5cf6; } .des-a3 { background: #ec4899; } .des-a4 { background: #f59e0b; } .des-a5 { background: #22c55e; }
+
+  .time-simp { color: #9ca3af; font-size: 11px; }
+
+  .stage-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .stage-dot.blue { background: #3b82f6; }
+  .stage-dot.purple { background: #8b5cf6; }
+  .stage-dot.indigo { background: #6366f1; }
+  .stage-dot.orange { background: #f59e0b; }
+  .stage-dot.lead { background: #3b82f6; }
+  .stage-dot.wechat { background: #8b5cf6; }
+  .stage-dot.communicating { background: #6366f1; }
+  .stage-dot.followup { background: #f59e0b; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ 客户管理 ═══════════════ -->
+<h2>📋 客户管理</h2>
+<div class="compare">
+  <div class="col">
+    <div class="label before">❌ 现状 — 左对齐</div>
+    <div class="table-wrap before">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:120px">客户</th><th>添加时间</th><th>地区</th><th>小区名称</th>
+            <th>房子面积</th><th>喜欢风格</th><th>客户归属</th><th>跟进</th>
+            <th>跟进时间</th><th style="width:60px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#6366f1,#818cf8)">张</div>张女士</div></td>
+            <td class="muted">6月15日</td><td>上海</td><td>翠湖天地</td><td>128㎡</td>
+            <td><span class="tag tag-blue">意式极简</span></td><td><span class="tag tag-purple">守一意式</span></td>
+            <td><span class="tag tag-orange">待跟进</span></td><td class="muted">6月20日</td>
+            <td><button class="btn">归档</button></td>
+          </tr>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)">李</div>李先生</div></td>
+            <td class="muted">6月12日</td><td>北京</td><td>星河湾</td><td>156㎡</td>
+            <td><span class="tag tag-green">法式风格</span></td><td><span class="tag tag-red">守中法式</span></td>
+            <td><span class="tag tag-green">沟通中</span></td><td class="muted">6月18日</td>
+            <td><button class="btn">归档</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col">
+    <div class="label after">✅ 居中后</div>
+    <div class="table-wrap after">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:120px">客户</th><th>添加时间</th><th>地区</th><th>小区名称</th>
+            <th>房子面积</th><th>喜欢风格</th><th>客户归属</th><th>跟进</th>
+            <th>跟进时间</th><th style="width:60px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#6366f1,#818cf8)">张</div>张女士</div></td>
+            <td class="muted">6月15日</td><td>上海</td><td>翠湖天地</td><td>128㎡</td>
+            <td><span class="tag tag-blue">意式极简</span></td><td><span class="tag tag-purple">守一意式</span></td>
+            <td><span class="tag tag-orange">待跟进</span></td><td class="muted">6月20日</td>
+            <td><button class="btn">归档</button></td>
+          </tr>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)">李</div>李先生</div></td>
+            <td class="muted">6月12日</td><td>北京</td><td>星河湾</td><td>156㎡</td>
+            <td><span class="tag tag-green">法式风格</span></td><td><span class="tag tag-red">守中法式</span></td>
+            <td><span class="tag tag-green">沟通中</span></td><td class="muted">6月18日</td>
+            <td><button class="btn">归档</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 在做项目 ═══════════════ -->
+<h2>🔨 在做项目</h2>
+<div class="compare">
+  <div class="col">
+    <div class="label before">❌ 现状 — 左对齐</div>
+    <div class="table-wrap before">
+      <table>
+        <thead>
+          <tr>
+            <th>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成</th><th>设计师</th><th>跟进情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#6366f1,#818cf8)">张</div>张女士</div></td>
+            <td class="cell-muted">翠湖天地</td><td class="cell-muted">6月10日</td><td class="cell-muted">8月10日</td>
+            <td><span class="des-dot des-a1">守一</span></td>
+            <td><span class="muted">已量房</span></td>
+          </tr>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#22c55e,#4ade80)">王</div>王先生</div></td>
+            <td class="cell-muted">汤臣一品</td><td class="cell-muted">5月20日</td><td class="cell-muted">7月20日</td>
+            <td><span class="des-dot des-a2">守一</span></td>
+            <td><span class="muted">方案确认中</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col">
+    <div class="label after">✅ 居中后</div>
+    <div class="table-wrap after">
+      <table>
+        <thead>
+          <tr>
+            <th>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成</th><th>设计师</th><th>跟进情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#6366f1,#818cf8)">张</div>张女士</div></td>
+            <td class="cell-muted">翠湖天地</td><td class="cell-muted">6月10日</td><td class="cell-muted">8月10日</td>
+            <td><span class="des-dot des-a1">守一</span></td>
+            <td><span class="muted">已量房</span></td>
+          </tr>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#22c55e,#4ade80)">王</div>王先生</div></td>
+            <td class="cell-muted">汤臣一品</td><td class="cell-muted">5月20日</td><td class="cell-muted">7月20日</td>
+            <td><span class="des-dot des-a2">守一</span></td>
+            <td><span class="muted">方案确认中</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ 已做项目 ═══════════════ -->
+<h2>✅ 已做项目</h2>
+<div class="compare">
+  <div class="col">
+    <div class="label before">❌ 现状 — 左对齐</div>
+    <div class="table-wrap before">
+      <table>
+        <thead>
+          <tr>
+            <th>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成</th><th>确认完成</th><th>设计师</th><th>跟进情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)">刘</div>刘女士</div></td>
+            <td class="cell-muted">仁恒滨江</td><td class="cell-muted">3月1日</td><td class="cell-muted">5月1日</td>
+            <td class="cell-done">5月3日</td>
+            <td><span class="des-dot des-a3">守中</span></td>
+            <td><span class="muted">已完工验收</span></td>
+          </tr>
+          <tr>
+            <td><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#3b82f6,#60a5fa)">陈</div>陈先生</div></td>
+            <td class="cell-muted">万科翡翠</td><td class="cell-muted">2月15日</td><td class="cell-muted">4月15日</td>
+            <td class="cell-done">4月20日</td>
+            <td><span class="des-dot des-a4">守一</span></td>
+            <td><span class="muted">尾款已结清</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col">
+    <div class="label after">✅ 居中后</div>
+    <div class="table-wrap after">
+      <table>
+        <thead>
+          <tr>
+            <th>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成</th><th>确认完成</th><th>设计师</th><th>跟进情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)">刘</div>刘女士</div></td>
+            <td class="cell-muted">仁恒滨江</td><td class="cell-muted">3月1日</td><td class="cell-muted">5月1日</td>
+            <td class="cell-done">5月3日</td>
+            <td><span class="des-dot des-a3">守中</span></td>
+            <td><span class="muted">已完工验收</span></td>
+          </tr>
+          <tr>
+            <td class="name-cell"><div class="av"><div class="av-dot" style="background:linear-gradient(135deg,#3b82f6,#60a5fa)">陈</div>陈先生</div></td>
+            <td class="cell-muted">万科翡翠</td><td class="cell-muted">2月15日</td><td class="cell-muted">4月15日</td>
+            <td class="cell-done">4月20日</td>
+            <td><span class="des-dot des-a4">守一</span></td>
+            <td><span class="muted">尾款已结清</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

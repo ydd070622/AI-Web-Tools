@@ -26,7 +26,7 @@ export default function CrmArchivedPage({ data, updateCust }: SharedProps) {
         <span className="crm-page-count">共 {archived.length} 位客户</span>
         <div style={{ flex: 1 }} />
         {manageMode && selectedIds.length > 0 && (
-          <button className="btn btn-primary btn-sm" onClick={restoreSelected}>恢复选中 ({selectedIds.length})</button>
+          <button className="btn btn-primary btn-sm" onClick={restoreSelected}>退档选中 ({selectedIds.length})</button>
         )}
         <button className={`btn btn-sm ${manageMode ? 'btn-danger' : 'btn-ghost'}`} style={{ marginLeft: 8 }} onClick={() => { setManageMode(!manageMode); setSelectedIds([]) }}>
           {manageMode ? '完成' : '管理'}
@@ -40,7 +40,7 @@ export default function CrmArchivedPage({ data, updateCust }: SharedProps) {
               {manageMode && <th style={{ width: 36, textAlign: 'center' }}><input type="checkbox" checked={archived.length > 0 && selectedIds.length === archived.length} onChange={toggleAll} /></th>}
               <th>客户</th><th>添加时间</th><th>地区</th><th>小区名称</th>
               <th>房子面积</th><th>喜欢风格</th><th>客户归属</th><th>跟进</th><th>跟进时间</th>
-              <th>归档</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -71,7 +71,7 @@ export default function CrmArchivedPage({ data, updateCust }: SharedProps) {
                   <td>{fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">—</span>}</td>
                   <td><span className="crm-muted">{c.followUpDate ? fmtDate(c.followUpDate) : '—'}</span></td>
                   <td>
-                    <button className="crm-btn-ghost-xs" onClick={e => { e.stopPropagation(); if (confirm('确认退档？客户将会退回到客户管理页面。')) { updateCust(c.id, { archived: false }); toast.success(`${c.name} 已恢复`) } }}>归档</button>
+                    <button className="crm-btn-ghost-xs" onClick={e => { e.stopPropagation(); if (confirm('确认退档？客户将会退回到客户管理页面。')) { updateCust(c.id, { archived: false }); toast.success(`${c.name} 已退档`) } }}>退档</button>
                   </td>
                 </tr>
               )

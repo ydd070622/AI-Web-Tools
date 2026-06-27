@@ -2788,6 +2788,34 @@ textarea.input-base {
 }
 .crm-sidebar-item-icon { width: 18px; display: flex; align-items: center; justify-content: center; opacity: 0.7; }
 .crm-sidebar-item.active .crm-sidebar-item-icon { opacity: 1; }
+
+/* CRM Sidebar Sub-menu (二级折叠菜单) */
+.crm-sidebar-parent {
+  position: relative;
+}
+.crm-sidebar-chevron {
+  margin-left: auto;
+  transition: transform 0.2s;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.crm-sidebar-chevron.open {
+  transform: rotate(180deg);
+}
+.crm-sidebar-sub-item {
+  padding-left: 36px !important;
+  font-size: 12px !important;
+  border-radius: 4px !important;
+  margin: 0 4px;
+}
+.crm-sidebar-sub-item .crm-sidebar-item-icon {
+  width: 15px;
+  opacity: 0.6;
+}
+.crm-sidebar-sub-item.active .crm-sidebar-item-icon {
+  opacity: 1;
+}
+
 .crm-sidebar-badge {
   margin-left: auto; font-size: 10px; padding: 1px 7px; border-radius: 10px;
   font-weight: 600; color: #fff; min-width: 18px; text-align: center; line-height: 1.5;
@@ -2989,7 +3017,7 @@ textarea.input-base {
 }
 .crm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .crm-table th {
-  text-align: left; padding: 10px 14px; border-bottom: 1.5px solid var(--border-color);
+  text-align: center; padding: 10px 14px; border-bottom: 1.5px solid var(--border-color);
   color: var(--text-secondary); font-weight: 700; font-size: 13px;
   background: var(--bg-primary); position: sticky; top: 0; z-index: 1;
 }
@@ -3001,7 +3029,7 @@ textarea.input-base {
 }
 .crm-th-sort:hover { color: var(--accent); }
 .crm-th-sort.active { color: var(--accent); }
-.crm-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); }
+.crm-table td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); text-align: center; }
 .crm-table tbody tr { cursor: pointer; transition: background 0.15s; }
 .crm-table tbody tr:hover td { background: var(--bg-card-hover); }
 
@@ -3898,12 +3926,12 @@ textarea.input-base {
 }
 .crm-table { width: 100%; border-collapse: collapse; }
 .crm-table thead th {
-  font-size: 11px; font-weight: 600; color: var(--text-muted); text-align: left;
+  font-size: 11px; font-weight: 600; color: var(--text-muted); text-align: center;
   padding: 10px 12px; border-bottom: 1px solid var(--border-color); white-space: nowrap;
 }
 .crm-table tbody td {
   padding: 10px 12px; border-bottom: 1px solid rgba(47,48,55,.4); font-size: 13px;
-  vertical-align: middle; white-space: nowrap;
+  vertical-align: middle; white-space: nowrap; text-align: center;
 }
 .crm-table tbody tr { transition: background .1s; }
 .crm-table tbody tr:hover { background: rgba(255,255,255,.02); }

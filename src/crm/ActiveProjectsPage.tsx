@@ -178,7 +178,7 @@ export default function ActiveProjectsPage({ data, activeProjects, addProject, c
           <thead>
             <tr>
               {manageMode && <th style={{ width: 40, textAlign: 'center' }}><input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /></th>}
-              <th>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成日期</th>
+              <th style={{ textAlign: 'left' }}>客户</th><th>小区名称</th><th>开始日期</th><th>预估完成日期</th>
               <th>时间提醒</th><th>设计师</th><th>确认完成日期</th><th>跟进情况</th>
               <th style={{ textAlign: 'right' }}>操作</th>
             </tr>

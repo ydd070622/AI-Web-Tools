@@ -40,6 +40,8 @@ export interface Customer {
   followUpHistory?: FollowUp[]                        // 跟进历史时间线，按时间正序，默认 []
   // —— 归档（放弃客户不会再出现在客户管理页面）——
   archived?: boolean
+  // —— 合同归档（手动归档已完工合同）——
+  contractArchived?: boolean
 }
 
 // 项目管理：在做项目 / 已做项目
@@ -89,4 +91,9 @@ export interface SharedProps {
   addDesigner: (name: string) => void
   deleteDesigner: (name: string) => void
   updateProject: (id: string, upd: Partial<Project>) => void
+  // 合同归档
+  archivedContracts: Customer[]
+  archiveContract: (id: string) => void
+  restoreContract: (id: string) => void
+  restoreContracts: (ids: string[]) => void
 }

@@ -1,16 +1,15 @@
 import { useState, useMemo } from 'react'
-import { Search, X, Plus, GripVertical, ArrowUp, ArrowDown, Download } from 'lucide-react'
+import { Search, X, Plus, ArrowUp, ArrowDown, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { pinyin } from 'pinyin-pro'
 import Fuse from 'fuse.js'
 import ExcelJS from 'exceljs'
 import type { SharedProps, Customer, EnrichedCustomer } from './types'
-import { STAGES, TAG_COLORS, ACCOUNTS } from './constants'
+import { TAG_COLORS } from './constants'
 import { avatarGrad, fuDisplay, fmtDate } from './helpers'
 
-export default function CustomerPage({ data, viewMode, setViewMode, setEditingCustomer, enrichCust, updateCust, moveCust, deleteCusts, followUpFilter, setFollowUpFilter }: SharedProps) {
+export default function CustomerPage({ data, setEditingCustomer, enrichCust, updateCust, deleteCusts, followUpFilter, setFollowUpFilter }: SharedProps) {
   const [search, setSearch] = useState('')
-  const [dragId, setDragId] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [timeDesc, setTimeDesc] = useState(true)
@@ -65,18 +64,6 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
       return timeDesc ? db.localeCompare(da) : da.localeCompare(db)
     })
   }, [customers, search, fuse, timeDesc, recordTimeDesc, sortBy, followUpFilter])
-
-  const kanbanGroups = useMemo(() => {
-    const m: Record<string, EnrichedCustomer[]> = {}
-    const accountIds = ACCOUNTS.map(a => a.id)
-    const allCols = [...accountIds, '__unassigned']
-    allCols.forEach(id => { m[id] = [] })
-    filtered.forEach(c => {
-      const key = c.style && (accountIds as string[]).includes(c.style) ? c.style : '__unassigned'
-      m[key].push(c)
-    })
-    return { groups: m, columns: allCols }
-  }, [filtered])
 
   const onAdd = (account?: string) => setEditingCustomer(account ? { style: account } as Partial<Customer> : {})
 
@@ -212,10 +199,6 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
         </div>
         <div className="crm-toolbar-right">
           <span className="crm-count-label">{filtered.length} 位客户</span>
-          <div className="crm-view-toggle">
-            <button className={`crm-view-btn ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>列表</button>
-            <button className={`crm-view-btn ${viewMode === 'kanban' ? 'active' : ''}`} onClick={() => setViewMode('kanban')}>看板</button>
-          </div>
           {batchMode ? (
             <>
               <button className="crm-btn-danger-outline" onClick={() => { if (selectedIds.size > 0) { deleteCusts(Array.from(selectedIds)); setSelectedIds(new Set()); setBatchMode(false) } }} disabled={selectedIds.size === 0}>
@@ -225,7 +208,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
             </>
           ) : (
             <>
-              <button className="crm-btn-ghost" onClick={() => { setBatchMode(true); setViewMode('table') }}>管理</button>
+              <button className="crm-btn-ghost" onClick={() => { setBatchMode(true) }}>管理</button>
               <button className="crm-btn-ghost" onClick={handleDownload} title="下载为CSV表格"><Download size={13} /></button>
               <button className="crm-btn-primary" onClick={() => onAdd()}><Plus size={14} /> 添加客户</button>
             </>
@@ -233,13 +216,12 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
         </div>
       </div>
 
-      {viewMode === 'table' ? (
-        <div className="crm-table-wrap">
-          <table className="crm-table">
+      <div className="crm-table-wrap">
+        <table className="crm-table">
             <thead>
               <tr>
                 {batchMode && <th style={{ width: 36 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(c => selectedIds.has(c.id))} onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(c => c.id))); else setSelectedIds(new Set()) }} /></th>}
-                <th style={{ width: 160 }}>客户</th>
+                <th style={{ width: 160, textAlign: 'left' }}>客户</th>
                 <th style={{ width: 100 }}>
                   <button className="crm-th-sort" onClick={() => { setRecordTimeDesc(v => !v); setSortBy('record') }} title="点击排序">
                     添加时间
@@ -258,7 +240,7 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
                     {timeDesc ? <ArrowDown size={11} /> : <ArrowUp size={11} />}
                   </button>
                 </th>
-                <th style={{ width: 70 }}>归档</th>
+                <th style={{ width: 70 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -295,62 +277,6 @@ export default function CustomerPage({ data, viewMode, setViewMode, setEditingCu
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="crm-kanban">
-          {kanbanGroups.columns.map(colId => {
-            const cards = kanbanGroups.groups[colId] || []
-            const isUnassigned = colId === '__unassigned'
-            const accountInfo = !isUnassigned ? ACCOUNTS.find(a => a.id === colId) : null
-            const label = accountInfo?.label || '未分配'
-            const tagColor = !isUnassigned ? TAG_COLORS[colId] : { bg: '#6b7280', text: '#fff' }
-            return (
-              <div key={colId} className="crm-kanban-col"
-                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('drag-over') }}
-                onDragLeave={e => { e.currentTarget.classList.remove('drag-over') }}
-                onDrop={e => {
-                  e.currentTarget.classList.remove('drag-over')
-                  if (dragId) {
-                    updateCust(dragId, { style: isUnassigned ? '' : colId })
-                    setDragId(null)
-                  }
-                }}>
-                <div className="crm-kanban-col-header">
-                  <span className="crm-dot" style={{ background: tagColor.bg }} />
-                  <span>{label}</span>
-                  <span className="crm-kanban-count">{cards.length}</span>
-                </div>
-                <div className="crm-kanban-cards">
-                  {cards.map(c => (
-                    <div key={c.id} className={`crm-card ${dragId === c.id ? 'dragging' : ''}`}
-                      style={{ borderLeftColor: tagColor.bg }}
-                      draggable
-                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragId(c.id) }}
-                      onDragEnd={() => setDragId(null)}
-                      onClick={() => setEditingCustomer(c)}>
-                      <div className="crm-card-top">
-                        <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${avatarGrad(c.name)[0]},${avatarGrad(c.name)[1]})` }}>{c.name[0]}</div>
-                        <div>
-                          <div className="crm-card-name">{c.name}</div>
-                          {c.city && <div className="crm-muted" style={{ fontSize: 10 }}>{c.city}</div>}
-                        </div>
-                      </div>
-                      <div className="crm-card-tags">
-                        {c.stylePreference && <span className="crm-card-tag" style={{ background: (TAG_COLORS[c.stylePreference] || {}).bg || 'var(--bg-tertiary)', color: (TAG_COLORS[c.stylePreference] || {}).text || 'var(--text-secondary)' }}>{c.stylePreference}</span>}
-                        {c.wechat && <span className="crm-card-tag tag-blue">{c.wechat}</span>}
-                      </div>
-                      <div className="crm-card-footer">
-                        {(() => { const fu = fuDisplay(c.followUpDate); return fu ? <span className={`crm-tag ${fu.cls}`}>{fu.text}</span> : <span className="crm-muted">{c.followUpDate ? fmtDate(c.followUpDate) : '待定'}</span> })()}
-                        <span className={`crm-stage-dot stage-${c.stage}`} title={STAGES.find(s => s.id === c.stage)?.label || c.stage} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button className="crm-kanban-add" onClick={() => onAdd(isUnassigned ? undefined : colId)}>+ 添加</button>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

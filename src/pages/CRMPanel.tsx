@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
-import { CloudUpload, CloudDownload } from 'lucide-react'
+import { CloudUpload, CloudDownload, ChevronDown, Users, FileText } from 'lucide-react'
 import type { CRMData, Customer, EnrichedCustomer, FollowUp, Project } from '../crm/types'
 import { STAGES, SOURCES, TABS, STORAGE_KEY } from '../crm/constants'
 import { today as todayStr, daysDiff } from '../crm/helpers'
@@ -15,6 +15,7 @@ import ContractDetailModal from '../crm/ContractDetailModal'
 import ActiveProjectsPage from '../crm/ActiveProjectsPage'
 import DoneProjectsPage from '../crm/DoneProjectsPage'
 import CrmArchivedPage from '../crm/CrmArchivedPage'
+import ContractArchivePage from '../crm/ContractArchivePage'
 
 export default function CRMPanel() {
   const [data, setData] = useState<CRMData>(createDefaultData)
@@ -27,6 +28,7 @@ export default function CRMPanel() {
   const [syncStatus, setSyncStatus] = useState({ configured: false, lastSyncAt: '' })
   const [syncing, setSyncing] = useState(false)
   const [followUpFilter, setFollowUpFilter] = useState<{ start: string; end: string } | null>(null)
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set(['archived']))
 
   useEffect(() => {
     const load = async () => {
@@ -57,7 +59,7 @@ export default function CRMPanel() {
               followUpHistory = []
             }
           }
-          return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', community: c.community || '', houseArea: c.houseArea || '', ...contractBase, followUpHistory }
+          return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', community: c.community || '', houseArea: c.houseArea || '', ...contractBase, followUpHistory, contractArchived: c.contractArchived ?? false }
         }),
       })
       if (window.electronAPI) {
@@ -186,6 +188,10 @@ export default function CRMPanel() {
     (data.projects || []).filter(p => !!p.completedDate).sort((a, b) => b.completedDate!.localeCompare(a.completedDate!)),
     [data.projects])
 
+  const archivedContracts = useMemo(() =>
+    data.customers.filter(c => c.stage === 'closed' && c.contractArchived === true),
+    [data.customers])
+
   const addProject = useCallback((proj: Omit<Project, 'id'>) => {
     const p: Project = { id: 'proj_' + Date.now(), ...proj }
     persist({ ...data, projects: [...(data.projects || []), p] })
@@ -208,6 +214,21 @@ export default function CRMPanel() {
   const updateProject = useCallback((id: string, upd: Partial<Project>) => {
     persist({ ...data, projects: (data.projects || []).map(p => p.id === id ? { ...p, ...upd } : p) })
   }, [data, persist])
+
+  const archiveContract = useCallback((id: string) => {
+    updateCust(id, { contractArchived: true })
+    toast.success('合同已归档')
+  }, [updateCust])
+
+  const restoreContract = useCallback((id: string) => {
+    updateCust(id, { contractArchived: false })
+    toast.success('合同已恢复')
+  }, [updateCust])
+
+  const restoreContracts = useCallback((ids: string[]) => {
+    ids.forEach(id => updateCust(id, { contractArchived: false }))
+    toast.success(`已恢复 ${ids.length} 份合同`)
+  }, [updateCust])
 
   const addDesigner = useCallback((name: string) => {
     if ((data.designers || []).includes(name)) return
@@ -260,7 +281,7 @@ export default function CRMPanel() {
     return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   }
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab, followUpFilter, setFollowUpFilter, activeProjects, doneProjects, addProject, completeProject, deleteProject, updateProject, designers: data.designers || [], addDesigner, deleteDesigner }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab, followUpFilter, setFollowUpFilter, activeProjects, doneProjects, addProject, completeProject, deleteProject, updateProject, designers: data.designers || [], addDesigner, deleteDesigner, archivedContracts, archiveContract, restoreContract, restoreContracts }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
@@ -268,7 +289,10 @@ export default function CRMPanel() {
     { ...TABS[2], badge: activeProjects.length > 0 ? { count: activeProjects.length, cls: 'info' } : null },
     { ...TABS[3], badge: doneProjects.length > 0 ? { count: doneProjects.length, cls: 'success' } : null },
     { ...TABS[4], badge: closedCusts.length > 0 ? { count: closedCusts.length, cls: 'success' } : null },
-    { ...TABS[5], badge: null },
+    { ...TABS[5], badge: null, children: [
+      { id: 'archived-customers', label: '客户归档', icon: Users },
+      { id: 'archived-contracts', label: '合同归档', icon: FileText },
+    ] as const },
     { ...TABS[6], badge: null },
   ]
 
@@ -283,11 +307,53 @@ export default function CRMPanel() {
         <div className="crm-sidebar-nav">
           {sidebarItems.map(item => {
             const Icon = item.icon
+            const hasChildren = 'children' in item && item.children && item.children.length > 0
+            const isExpanded = expandedMenus.has(item.id)
+            // Parent is "active" if any child tab is selected
+            const isParentActive = hasChildren && item.children!.some((c: { id: string }) => c.id === tab)
+            const isItemActive = tab === item.id
+
+            const toggleMenu = () => {
+              setExpandedMenus(prev => {
+                const next = new Set(prev)
+                if (next.has(item.id)) next.delete(item.id)
+                else next.add(item.id)
+                return next
+              })
+            }
+
             return (
-              <div key={item.id} className={`crm-sidebar-item ${tab === item.id ? 'active' : ''}`} onClick={() => setTab(item.id)}>
-                <span className="crm-sidebar-item-icon"><Icon size={15} /></span>
-                <span>{item.label}</span>
-                {item.badge && <span className={`crm-sidebar-badge ${item.badge.cls}`}>{item.badge.count}</span>}
+              <div key={item.id}>
+                <div
+                  className={`crm-sidebar-item ${(isItemActive || isParentActive) ? 'active' : ''} ${hasChildren ? 'crm-sidebar-parent' : ''}`}
+                  onClick={() => {
+                    if (hasChildren) {
+                      toggleMenu()
+                    } else {
+                      setTab(item.id)
+                    }
+                  }}
+                >
+                  <span className="crm-sidebar-item-icon"><Icon size={15} /></span>
+                  <span>{item.label}</span>
+                  {hasChildren && (
+                    <ChevronDown size={12} className={`crm-sidebar-chevron ${isExpanded ? 'open' : ''}`} />
+                  )}
+                  {item.badge && <span className={`crm-sidebar-badge ${item.badge.cls}`}>{item.badge.count}</span>}
+                </div>
+                {hasChildren && isExpanded && item.children!.map((child: { id: string; label: string; icon: any }) => {
+                  const ChildIcon = child.icon
+                  return (
+                    <div
+                      key={child.id}
+                      className={`crm-sidebar-item crm-sidebar-sub-item ${tab === child.id ? 'active' : ''}`}
+                      onClick={() => setTab(child.id)}
+                    >
+                      <span className="crm-sidebar-item-icon"><ChildIcon size={13} /></span>
+                      <span>{child.label}</span>
+                    </div>
+                  )
+                })}
               </div>
             )
           })}
@@ -315,7 +381,8 @@ export default function CRMPanel() {
           {tab === 'active-projects' && <ActiveProjectsPage {...sharedProps} />}
           {tab === 'done-projects' && <DoneProjectsPage {...sharedProps} />}
           {tab === 'contracts' && <ContractPage {...sharedProps} />}
-          {tab === 'archived' && <CrmArchivedPage {...sharedProps} />}
+          {tab === 'archived-customers' && <CrmArchivedPage {...sharedProps} />}
+          {tab === 'archived-contracts' && <ContractArchivePage {...sharedProps} />}
           {tab === 'dashboard' && <DashboardPage {...sharedProps} />}
         </div>
       </div>
@@ -340,6 +407,7 @@ export default function CRMPanel() {
           contract={viewingContract}
           onSave={(id, upd) => { updateCust(id, upd); setViewingContract(null) }}
           onDelete={() => { deleteCust(viewingContract.id); setViewingContract(null) }}
+          onArchive={() => { archiveContract(viewingContract.id); setViewingContract(null) }}
           onClose={() => setViewingContract(null)}
         />
       )}

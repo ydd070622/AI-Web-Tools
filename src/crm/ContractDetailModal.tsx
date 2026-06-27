@@ -4,10 +4,11 @@ import { X, Check, Pencil, Trash2, Plus } from 'lucide-react'
 import type { Customer, Payment } from './types'
 import { CONTRACT_STATUS, defaultPaymentPlan } from './constants'
 
-export default function ContractDetailModal({ contract, onSave, onDelete, onClose }: {
+export default function ContractDetailModal({ contract, onSave, onDelete, onArchive, onClose }: {
   contract: Customer
   onSave: (id: string, upd: Partial<Customer>) => void
   onDelete: () => void
+  onArchive?: () => void
   onClose: () => void
 }) {
   const [form, setForm] = useState({
@@ -238,7 +239,8 @@ export default function ContractDetailModal({ contract, onSave, onDelete, onClos
           <textarea className="crm-form-textarea" value={form.notes} onChange={e => h('notes', e.target.value)} rows={2} />
         </div>
         <div className="crm-modal-footer">
-          <button className="crm-btn-ghost crm-btn-danger" onClick={onDelete}>删除</button>
+          {onArchive && <button className="crm-btn-ghost" style={{ color: 'var(--text-muted)' }} onClick={() => { if (confirm('归档后将移至「合同归档」，确定？')) onArchive() }}>归档</button>}
+          {!onArchive && <button className="crm-btn-ghost crm-btn-danger" onClick={onDelete}>删除</button>}
           <div style={{ flex: 1 }} />
           <button className="crm-btn-ghost" onClick={onClose}>取消</button>
           <button className="crm-btn-primary" onClick={() => doSave()}>保存</button>
