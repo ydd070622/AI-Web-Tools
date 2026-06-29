@@ -23,6 +23,7 @@ export default function CRMPanel() {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table')
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
   const [editingContract, setEditingContract] = useState(false)
+  const [contractPrefillCustomerId, setContractPrefillCustomerId] = useState<string | null>(null)
   const [viewingContract, setViewingContract] = useState<Customer | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [syncStatus, setSyncStatus] = useState({ configured: false, lastSyncAt: '' })
@@ -35,35 +36,24 @@ export default function CRMPanel() {
       // 数据迁移：给老客户补新字段默认值（无感升级），同时剥离废弃字段
       const migrate = (raw: any): CRMData => {
         const { accounts, notes, ...rest } = raw
-        return {
-          ...rest,
-          projects: raw.projects || [],
-          designers: raw.designers || [],
-          customers: (raw.customers || []).map((c: any) => {
-          // 合同字段（仅 closed 客户）
+        const customers: Customer[] = (raw.customers || []).map((c: any) => {
           const contractBase = c.stage === 'closed' ? {
             contractStatus: c.contractStatus || 'signed' as const,
             paymentPlan: c.paymentPlan?.length ? c.paymentPlan : [],
             signDate: c.signDate || '',
           } : {}
-          // 跟进历史：已有则保留；老客户有 followUpNote 的，转成一条历史
           let followUpHistory = c.followUpHistory
           if (!followUpHistory) {
             if (c.followUpNote && c.followUpNote.trim()) {
-              const entry: FollowUp = {
-                id: 'fu_mig_' + c.id,
-                date: c.updatedAt || c.createdAt || todayStr(),
-                content: c.followUpNote,
-                nextDate: c.followUpDate || undefined,
-              }
-              followUpHistory = [entry]
-            } else {
-              followUpHistory = []
-            }
+              followUpHistory = [{ id: 'fu_mig_' + c.id, date: c.updatedAt || c.createdAt || todayStr(), content: c.followUpNote, nextDate: c.followUpDate || undefined }]
+            } else { followUpHistory = [] }
           }
           return { ...c, recordDate: c.recordDate || c.createdAt || '', stylePreference: c.stylePreference || '', community: c.community || '', houseArea: c.houseArea || '', ...contractBase, followUpHistory, contractArchived: c.contractArchived ?? false }
-        }),
-      }
+        })
+        // Clean orphan projects (customer deleted but project remains)
+        const custIds = new Set(customers.map(c => c.id))
+        const projects = (raw.projects || []).filter((p: any) => custIds.has(p.customerId))
+        return { ...rest, projects, designers: raw.designers || [], customers }
       }
       if (window.electronAPI) {
         const saved = await window.electronAPI.getStore(STORAGE_KEY)
@@ -96,6 +86,18 @@ export default function CRMPanel() {
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(d))
     }
+  }, [])
+
+  const batchUpdate = useCallback((fn: (data: CRMData) => CRMData) => {
+    setData(prev => {
+      const next = fn(prev)
+      if (window.electronAPI) {
+        window.electronAPI.setStore(STORAGE_KEY, next)
+      } else {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      }
+      return next
+    })
   }, [])
 
   const ts = todayStr()
@@ -141,9 +143,13 @@ export default function CRMPanel() {
   }, [data, ts, persist])
 
   const deleteCust = useCallback((id: string) => {
-    if (!confirm('确定删除？')) return
-    persist({ ...data, customers: data.customers.filter(c => c.id !== id) })
-    toast.success('已删除客户')
+    if (!confirm('确定删除？相关项目也会同步删除。')) return
+    persist({
+      ...data,
+      customers: data.customers.filter(c => c.id !== id),
+      projects: (data.projects || []).filter(p => p.customerId !== id),
+    })
+    toast.success('已删除客户及关联项目')
   }, [data, persist])
 
   const deleteCusts = useCallback((ids: string[]) => {
@@ -167,7 +173,7 @@ export default function CRMPanel() {
   }, [updateCust, data.customers])
 
   const followUps = useMemo(() =>
-    data.customers.filter(c => c.followUpDate && c.stage !== 'closed')
+    data.customers.filter(c => c.followUpDate && c.stage !== 'closed' && !c.archived)
       .map(c => ({ ...c, diff: daysDiff(c.followUpDate, ts) }))
       .sort((a, b) => a.diff - b.diff),
     [data.customers, ts])
@@ -175,10 +181,10 @@ export default function CRMPanel() {
   const overdueCount = followUps.filter(c => c.diff < 0).length
   const closedCusts = data.customers.filter(c => c.stage === 'closed')
 
-  const activeProjects = useMemo(() =>
+  const planningProjects = useMemo(() =>
     (data.projects || []).filter(p => !p.completedDate),
     [data.projects])
-  const doneProjects = useMemo(() =>
+  const meetingProjects = useMemo(() =>
     (data.projects || []).filter(p => !!p.completedDate).sort((a, b) => b.completedDate!.localeCompare(a.completedDate!)),
     [data.projects])
 
@@ -196,9 +202,25 @@ export default function CRMPanel() {
       ...data,
       projects: (data.projects || []).map(p => p.id === id ? { ...p, completedDate } : p)
     })
-    setTab('done-projects')
-    toast.success('项目已移至「已做项目」')
+    setTab('meeting')
+    toast.success('项目已移至「待约洽谈」')
   }, [data, persist, setTab])
+
+  const uncompleteProject = useCallback((id: string) => {
+    persist({
+      ...data,
+      projects: (data.projects || []).map(p => p.id === id ? { ...p, completedDate: null } : p)
+    })
+    setTab('planning')
+    toast.success('项目已退回「平面规划中」')
+  }, [data, persist, setTab])
+
+  const signContract = useCallback((id: string) => {
+    const proj = data.projects?.find(p => p.id === id)
+    if (!proj) return
+    setContractPrefillCustomerId(proj.customerId)
+    setEditingContract(true)
+  }, [data.projects])
 
   const deleteProject = useCallback((id: string) => {
     persist({ ...data, projects: (data.projects || []).filter(p => p.id !== id) })
@@ -223,6 +245,22 @@ export default function CRMPanel() {
     ids.forEach(id => updateCust(id, { contractArchived: false }))
     toast.success(`已恢复 ${ids.length} 份合同`)
   }, [updateCust])
+
+  const rollbackContract = useCallback((id: string) => {
+    const cust = data.customers.find(c => c.id === id)
+    if (!cust) return
+    persist({
+      ...data,
+      customers: data.customers.map(c => c.id === id ? {
+        ...c, stage: 'communicating' as const, dealAmount: null,
+        contractStatus: undefined, paymentPlan: [], signDate: '', projectId: undefined,
+      } : c),
+      projects: (data.projects || []).map(p =>
+        p.customerId === id ? { ...p, completedDate: null } : p
+      ),
+    })
+    toast.success(`${cust.name} 已退回待约洽谈`)
+  }, [data, persist])
 
   const addDesigner = useCallback((name: string) => {
     if ((data.designers || []).includes(name)) return
@@ -275,13 +313,13 @@ export default function CRMPanel() {
     return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   }
 
-  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab, followUpFilter, setFollowUpFilter, activeProjects, doneProjects, addProject, completeProject, deleteProject, updateProject, designers: data.designers || [], addDesigner, deleteDesigner, archivedContracts, archiveContract, restoreContract, restoreContracts }
+  const sharedProps = { data, followUps, todayCount, overdueCount, closedCusts, leadCount: 0, enrichCust, updateCust, addCust, deleteCust, deleteCusts, moveCust, viewMode, setViewMode, setEditingCustomer, setEditingContract, setViewingContract, setTab, followUpFilter, setFollowUpFilter, planningProjects, meetingProjects, addProject, completeProject, uncompleteProject, signContract, deleteProject, updateProject, designers: data.designers || [], addDesigner, deleteDesigner, archivedContracts, archiveContract, restoreContract, restoreContracts, rollbackContract }
 
   const sidebarItems = [
     { ...TABS[0], badge: todayCount > 0 ? { count: todayCount, cls: overdueCount > 0 ? 'danger' : 'warn' } : null },
     { ...TABS[1], badge: null },
-    { ...TABS[2], badge: activeProjects.length > 0 ? { count: activeProjects.length, cls: 'info' } : null },
-    { ...TABS[3], badge: doneProjects.length > 0 ? { count: doneProjects.length, cls: 'success' } : null },
+    { ...TABS[2], badge: planningProjects.length > 0 ? { count: planningProjects.length, cls: 'info' } : null },
+    { ...TABS[3], badge: meetingProjects.length > 0 ? { count: meetingProjects.length, cls: 'warn' } : null },
     { ...TABS[4], badge: closedCusts.length > 0 ? { count: closedCusts.length, cls: 'success' } : null },
     { ...TABS[5], badge: null, children: [
       { id: 'archived-customers', label: '客户归档', icon: Users },
@@ -372,8 +410,8 @@ export default function CRMPanel() {
         <div className="crm-content">
           {tab === 'workbench' && <Workbench {...sharedProps} />}
           {tab === 'customers' && <CustomerPage {...sharedProps} />}
-          {tab === 'active-projects' && <ActiveProjectsPage {...sharedProps} />}
-          {tab === 'done-projects' && <DoneProjectsPage {...sharedProps} />}
+          {tab === 'planning' && <ActiveProjectsPage {...sharedProps} batchUpdate={batchUpdate} />}
+          {tab === 'meeting' && <DoneProjectsPage {...sharedProps} />}
           {tab === 'contracts' && <ContractPage {...sharedProps} />}
           {tab === 'archived-customers' && <CrmArchivedPage {...sharedProps} />}
           {tab === 'archived-contracts' && <ContractArchivePage {...sharedProps} />}
@@ -390,10 +428,11 @@ export default function CRMPanel() {
       )}
       {editingContract && (
         <ContractModal
-          customers={data.customers.filter(c => c.stage !== 'closed' && c.stage !== 'lead')}
-          onSaveNew={cust => { addCust(cust); setEditingContract(false) }}
-          onUpdateExisting={(id, upd) => { updateCust(id, upd); setEditingContract(false) }}
-          onClose={() => setEditingContract(false)}
+          customers={data.customers.filter(c => meetingProjects.some(p => p.customerId === c.id))}
+          prefillId={contractPrefillCustomerId}
+          onSaveNew={cust => { addCust(cust); setEditingContract(false); setContractPrefillCustomerId(null) }}
+          onUpdateExisting={(id, upd) => { updateCust(id, upd); setEditingContract(false); setContractPrefillCustomerId(null) }}
+          onClose={() => { setEditingContract(false); setContractPrefillCustomerId(null) }}
         />
       )}
       {viewingContract && (

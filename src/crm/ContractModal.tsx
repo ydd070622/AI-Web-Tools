@@ -1,11 +1,12 @@
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Search } from 'lucide-react'
 import type { Customer } from './types'
 import { STAGES, defaultPaymentPlan } from './constants'
 import { today } from './helpers'
 
-export default function ContractModal({ customers, onSaveNew, onUpdateExisting, onClose }: {
+export default function ContractModal({ customers, prefillId, onSaveNew, onUpdateExisting, onClose }: {
   customers: Customer[]
+  prefillId?: string | null
   onSaveNew: (c: Partial<Customer>) => void
   onUpdateExisting: (id: string, upd: Partial<Customer>) => void
   onClose: () => void
@@ -17,7 +18,50 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
   })
   const h = (f: string, v: string) => setForm(p => ({ ...p, [f]: v }))
 
+  // Search + dropdown state
+  const [search, setSearch] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
+
+  // Auto-select prefill customer
+  useEffect(() => {
+    if (prefillId) {
+      const c = customers.find(x => x.id === prefillId)
+      if (c) {
+        h('linkMode', 'existing')
+        h('linkedId', c.id)
+        h('name', c.name)
+        h('style', c.style)
+      }
+    }
+  }, [prefillId])
+
   const selectedCust = customers.find(c => c.id === form.linkedId)
+
+  const filteredCustomers = search.trim()
+    ? customers.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        (c.phone || '').includes(search) ||
+        (c.community || '').toLowerCase().includes(search.toLowerCase())
+      )
+    : customers
+
+  const selectCustomer = (c: Customer) => {
+    h('linkMode', 'existing')
+    h('linkedId', c.id)
+    h('name', c.name)
+    h('style', c.style)
+    setSearch('')
+    setShowDropdown(false)
+  }
+
+  const selectNewCustomer = () => {
+    h('linkMode', 'new')
+    h('linkedId', '')
+    h('name', '')
+    h('style', '')
+    setSearch('')
+    setShowDropdown(false)
+  }
 
   return (
     <div className="crm-modal-overlay">
@@ -28,24 +72,45 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
         </div>
         <div className="crm-modal-body">
           <div className="crm-form-group">
-            <label className="crm-form-label">关联客户 *</label>
-            <select className="crm-form-input" value={form.linkMode === 'existing' ? form.linkedId : '__new__'}
-              onChange={e => {
-                const v = e.target.value
-                if (v === '__new__') {
-                  h('linkMode', 'new'); h('linkedId', ''); h('name', ''); h('style', '')
-                } else {
-                  h('linkMode', 'existing'); h('linkedId', v)
-                  const c = customers.find(x => x.id === v)
-                  if (c) { h('name', c.name); h('style', c.style) }
+            <label className="crm-form-label">关联客户 * <span className="proj-hint">（点击搜索框后出现下拉列表）</span></label>
+            <div className="proj-search-wrap">
+              <Search size={14} className="proj-search-icon" />
+              <input className="proj-search-input" placeholder="搜索客户姓名/电话/小区..."
+                value={form.linkMode === 'existing' && selectedCust
+                  ? `${selectedCust.name} · ${selectedCust.phone || '无电话'}`
+                  : search
                 }
-              }}>
-              <option value="">-- 选择已有客户 --</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id}>{c.name} · {c.phone} · {STAGES.find(s => s.id === c.stage)?.label || c.stage}</option>
-              ))}
-              <option value="__new__">+ 新建客户</option>
-            </select>
+                onChange={e => {
+                  setSearch(e.target.value)
+                  if (form.linkMode === 'existing' && form.linkedId) {
+                    h('linkedId', ''); h('name', ''); h('style', '')
+                  }
+                  setShowDropdown(true)
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                autoComplete="off"
+              />
+              {showDropdown && (
+                <div className="proj-dropdown">
+                  {filteredCustomers.length === 0 ? (
+                    <div className="proj-dropdown-empty">无匹配客户</div>
+                  ) : (
+                    filteredCustomers.map(c => (
+                      <div key={c.id} className="proj-dropdown-item" onClick={() => selectCustomer(c)}>
+                        <span className="proj-dropdown-name">{c.name}</span>
+                        <span className="proj-dropdown-info">{c.phone || '无电话'} · {c.community || '无小区'}</span>
+                      </div>
+                    ))
+                  )}
+                  <div className="proj-dropdown-item" style={{ borderTop: '1px solid var(--border)', color: 'var(--accent)' }}
+                    onClick={selectNewCustomer}>
+                    <span className="proj-dropdown-name">+ 新建客户</span>
+                    <span className="proj-dropdown-info">创建一个新客户并关联合同</span>
+                  </div>
+                </div>
+              )}
+            </div>
             {form.linkMode === 'new' && (
               <input className="crm-form-input" style={{ marginTop: 8 }} value={form.name}
                 onChange={e => h('name', e.target.value)} placeholder="输入新客户姓名" />
@@ -88,7 +153,6 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
             if (!form.name.trim() || !form.dealAmount) return
             const dealAmount = parseInt(form.dealAmount) || 0
             if (form.linkMode === 'existing' && form.linkedId) {
-              // 更新已有客户，不创建重复记录
               onUpdateExisting(form.linkedId, {
                 stage: 'closed',
                 dealAmount,
@@ -100,7 +164,6 @@ export default function ContractModal({ customers, onSaveNew, onUpdateExisting, 
                 paymentPlan: defaultPaymentPlan(dealAmount),
               })
             } else {
-              // 新建客户 + 合同
               onSaveNew({
                 name: form.name,
                 phone: selectedCust?.phone || '', wechat: selectedCust?.wechat || '',

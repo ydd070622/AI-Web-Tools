@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { Search, X } from 'lucide-react'
 import type { SharedProps, FollowUp, Customer } from './types'
 import { avatarGrad, fmtDate, today } from './helpers'
 import { TAG_COLORS } from './constants'
@@ -16,8 +17,11 @@ function subLabel(key: SubKey) {
 }
 
 export default function Workbench({ data, followUps, closedCusts, updateCust, setEditingCustomer, setTab, setFollowUpFilter }: SharedProps) {
-  const active = data.customers.filter(c => c.stage !== 'closed')
+  const active = data.customers.filter(c => c.stage !== 'closed' && !c.archived)
   const closed = closedCusts.length
+
+  // Search
+  const [search, setSearch] = useState('')
 
   // Natural weeks (Mon-Sun) — local-date-safe
   function fmtLocal(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
@@ -60,7 +64,7 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
   }
 
   // Customers without follow-up date → "calm"
-  const noDateCusts = data.customers.filter(c => !c.followUpDate && c.stage !== 'closed')
+  const noDateCusts = data.customers.filter(c => !c.followUpDate && c.stage !== 'closed' && !c.archived)
   if (noDateCusts.length > 0) {
     groups.calm = [...groups.calm, ...noDateCusts.map(c => ({ ...c, diff: 999 }))]
   }
@@ -139,6 +143,15 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
     if (diff === 1) return '明天'
     if (diff === 2) return '后天'
     return null
+  }
+
+  /* ── Search Filter ── */
+  const matchSearch = (c: { name?: string; city?: string; followUpNote?: string }) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (c.name || '').toLowerCase().includes(q) ||
+      (c.city || '').toLowerCase().includes(q) ||
+      (c.followUpNote || '').toLowerCase().includes(q)
   }
 
   const renderCard = (c: FuEntry, cardClass: string) => {
@@ -224,6 +237,15 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
         </div>
       </div>
 
+      {/* ── Search Bar ── */}
+      <div className="crm-toolbar" style={{ marginTop: 10, marginBottom: 6 }}>
+        <div className="crm-toolbar-left" style={{ width: '100%' }}>
+          <Search size={14} style={{ opacity: 0.4 }} />
+          <input className="crm-search" placeholder="搜索客户姓名、地区、跟进内容…" value={search} onChange={e => setSearch(e.target.value)} />
+          {search && <span className="crm-page-count">{[...groups.overdue, ...groups.today, ...groups.tomorrow, ...groups.dayAfter, ...groups.normal, ...groups.calm].filter(matchSearch).length} 个结果</span>}
+        </div>
+      </div>
+
       {/* Follow-up Cards — v3 grouping */}
       <div className="wb-v3-body">
 
@@ -252,7 +274,7 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
                         <span className="wb-v3-sub-count">{list.length} 位</span>
                       </div>
                       <div className="wb-v3-grid wb-v3-grid-col-4">
-                        {list.map(c => renderCard(c, label.cardClass))}
+                        {list.filter(matchSearch).map(c => renderCard(c, label.cardClass))}
                       </div>
                     </div>
                   )
@@ -274,7 +296,7 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
             </div>
             {!collapsedGroups.normal && (
               <div className="wb-v3-grid wb-v3-grid-col-4">
-                {groups.normal.map(c => renderCard(c, 'normal'))}
+                {groups.normal.filter(matchSearch).map(c => renderCard(c, 'normal'))}
               </div>
             )}
           </div>
@@ -292,7 +314,7 @@ export default function Workbench({ data, followUps, closedCusts, updateCust, se
             </div>
             {!collapsedGroups.calm && (
               <div className="wb-v3-grid wb-v3-grid-col-4">
-                {groups.calm.map(c => renderCard(c, 'calm'))}
+                {groups.calm.filter(matchSearch).map(c => renderCard(c, 'calm'))}
               </div>
             )}
           </div>

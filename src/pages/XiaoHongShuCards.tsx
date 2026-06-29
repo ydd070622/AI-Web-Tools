@@ -78,6 +78,7 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [activeView, setActiveView] = useState<{ account: AccountConfig; platformKey: string; url: string; label: string } | null>(null)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
 
   // Re-clicking sidebar clears view back to empty state
   useEffect(() => {
@@ -422,11 +423,34 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
     saveStore(updated)
   }
 
+  // ── Drag to reorder ──
+  const handleDragStart = (e: React.DragEvent, idx: number) => {
+    setDragIdx(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault()
+    if (dragIdx === null || dragIdx === dropIdx) { setDragIdx(null); return }
+    const updated = [...accounts]
+    const [moved] = updated.splice(dragIdx, 1)
+    updated.splice(dropIdx, 0, moved)
+    // Reassign colors based on new order
+    const recolored = updated.map((a, i) => ({ ...a, color: genColor(i) }))
+    setAccounts(recolored)
+    saveStore(recolored)
+    setDragIdx(null)
+  }
+  const handleDragEnd = () => { setDragIdx(null) }
+
   // ── Sidebar Selection ──
   const handleSelectPlatform = (platformKey: string, accountId: string) => {
     if (manageMode) {
       const acc = accounts.find(a => a.id === accountId)
-      if (acc) { setEditingId(accountId); setEditName(acc.name) }
+      if (acc) { setEditingId(`${platformKey}:${accountId}`); setEditName(acc.name) }
       return
     }
     const acc = accounts.find(a => a.id === accountId)
@@ -469,11 +493,12 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
               </div>
               {!isCollapsed && (
                 <div className="xhs-sidebar-nav">
-                  {accsInPlat.map(acc => {
+                  {accsInPlat.map((acc, idx) => {
                     const isActive = activeView?.account.id === acc.id && activeView?.platformKey === plat.key
-                    const isEditing = editingId === acc.id
+                    const isEditing = editingId === `${plat.key}:${acc.id}`
                     return isEditing ? (
-                      <div key={acc.id} className="xhs-sidebar-item renaming active" onClick={e => e.stopPropagation()}>
+                      <div key={`${plat.key}-${acc.id}`} className="xhs-sidebar-item renaming active" onClick={e => e.stopPropagation()}
+                        style={{ '--acc-color': acc.color } as React.CSSProperties}>
                         <div className="xhs-account-avatar" style={{ background: acc.color }}>
                           {(editName || acc.name).charAt(0)}
                         </div>
@@ -481,20 +506,25 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
                           className="xhs-rename-input"
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') renameAccount(acc.id, editName) }}
-                          onBlur={() => renameAccount(acc.id, editName)}
+                          onKeyDown={e => { if (e.key === 'Enter') { renameAccount(acc.id, editName); setEditingId(null) } }}
                           autoFocus
                         />
-                        <span className="xhs-action-icons">
-                          <span onClick={e => { e.stopPropagation(); renameAccount(acc.id, editName) }} title="确认"><Check size={12} /></span>
+                        <span className="xhs-action-icons" style={{ opacity: 1 }}>
+                          <span onClick={e => { e.stopPropagation(); renameAccount(acc.id, editName); setEditingId(null) }} title="确认"><Check size={12} /></span>
                           <span onClick={e => { e.stopPropagation(); setEditingId(null) }} title="取消"><X size={12} /></span>
                         </span>
                       </div>
                     ) : (
                       <div
-                        key={acc.id}
-                        className={`xhs-sidebar-item ${isActive ? 'active' : ''}`}
+                        key={`${plat.key}-${acc.id}`}
+                        className={`xhs-sidebar-item ${isActive ? 'active' : ''} ${dragIdx === idx ? 'dragging' : ''}`}
+                        style={{ '--acc-color': acc.color } as React.CSSProperties}
                         onClick={() => handleSelectPlatform(plat.key, acc.id)}
+                        draggable
+                        onDragStart={e => handleDragStart(e, idx)}
+                        onDragOver={handleDragOver}
+                        onDrop={e => handleDrop(e, idx)}
+                        onDragEnd={handleDragEnd}
                       >
                         <div
                           className="xhs-account-avatar" style={{ background: acc.color }}
@@ -511,8 +541,8 @@ export default function XiaoHongShuCards({ visible, onUrlChange, resetKey }: { v
                           </div>
                         </div>
                         {manageMode && (
-                          <span className="xhs-action-icons">
-                            <span onClick={e => { e.stopPropagation(); setEditingId(acc.id); setEditName(acc.name) }} title="重命名"><Edit3 size={11} /></span>
+                          <span className="xhs-action-icons" style={{ opacity: manageMode ? 1 : undefined }}>
+                            <span onClick={e => { e.stopPropagation(); setEditingId(`${plat.key}:${acc.id}`); setEditName(acc.name) }} title="重命名"><Edit3 size={11} /></span>
                             <span onClick={e => { e.stopPropagation(); deleteAccount(acc.id) }} title="删除"><Trash2 size={11} /></span>
                           </span>
                         )}

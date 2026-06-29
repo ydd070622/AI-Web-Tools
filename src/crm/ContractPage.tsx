@@ -4,7 +4,7 @@ import type { SharedProps } from './types'
 import { avatarGrad, fmtDate } from './helpers'
 import { CONTRACT_STATUS } from './constants'
 
-export default function ContractPage({ closedCusts, setViewingContract, setEditingContract, deleteCusts, archiveContract }: SharedProps) {
+export default function ContractPage({ closedCusts, setViewingContract, setEditingContract, rollbackContract, archiveContract }: SharedProps) {
   const activeContracts = closedCusts.filter(c => !c.contractArchived)
   const total = activeContracts.reduce((s, c) => s + (c.dealAmount || 0), 0)
   const totalPaid = activeContracts.reduce((s, c) => s + (c.paymentPlan || []).filter(p => p.paid).reduce((ss, p) => ss + p.amount, 0), 0)
@@ -22,8 +22,8 @@ export default function ContractPage({ closedCusts, setViewingContract, setEditi
         <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
           {batchMode ? (
             <>
-              <button className="crm-btn-danger-outline" onClick={() => { if (selectedIds.size > 0) { deleteCusts(Array.from(selectedIds)); setSelectedIds(new Set()); setBatchMode(false) } }} disabled={selectedIds.size === 0}>
-                删除选中 ({selectedIds.size})
+              <button className="crm-btn-warn-outline" onClick={() => { if (selectedIds.size > 0) { Array.from(selectedIds).forEach(id => rollbackContract(id)); setSelectedIds(new Set()); setBatchMode(false) } }} disabled={selectedIds.size === 0}>
+                退档选中 ({selectedIds.size})
               </button>
               <button className="crm-btn-ghost" onClick={() => { setBatchMode(false); setSelectedIds(new Set()) }}>取消</button>
             </>

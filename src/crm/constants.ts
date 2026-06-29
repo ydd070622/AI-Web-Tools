@@ -57,8 +57,8 @@ export const TAG_COLORS: Record<string, { bg: string; text: string }> = {
 export const TABS = [
   { id: 'workbench', label: '工作台', icon: LayoutDashboard },
   { id: 'customers', label: '客户管理', icon: Users },
-  { id: 'active-projects', label: '在做项目', icon: Hammer },
-  { id: 'done-projects', label: '已做项目', icon: CheckCircle },
+  { id: 'planning', label: '平面规划中', icon: Hammer },
+  { id: 'meeting', label: '待约洽谈', icon: CheckCircle },
   { id: 'contracts', label: '合同管理', icon: FileText },
   { id: 'archived', label: '已完成项', icon: Archive },
   { id: 'dashboard', label: '数据看板', icon: BarChart3 },

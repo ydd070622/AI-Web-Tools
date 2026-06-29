@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
 import type { SharedProps } from './types'
 import { TAG_COLORS } from './constants'
@@ -6,12 +6,21 @@ import { avatarGrad, fuDisplay, fmtDate } from './helpers'
 
 export default function CrmArchivedPage({ data, updateCust, setEditingCustomer }: SharedProps) {
   const archived = data.customers.filter(c => !!c.archived)
+  const invalidCusts = archived.filter(c => c.stage !== 'closed')
+  const doneCusts = archived.filter(c => c.stage === 'closed')
 
+  const [filter, setFilter] = useState<'all' | 'invalid' | 'done'>('all')
   const [manageMode, setManageMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
+  const list = useMemo(() => {
+    if (filter === 'invalid') return invalidCusts
+    if (filter === 'done') return doneCusts
+    return archived
+  }, [filter, archived, invalidCusts, doneCusts])
+
   const toggleSelect = (id: string) => setSelectedIds(s => s.includes(id) ? s.filter(i => i !== id) : [...s, id])
-  const toggleAll = () => setSelectedIds(s => s.length === archived.length ? [] : archived.map(c => c.id))
+  const toggleAll = () => setSelectedIds(s => s.length === list.length ? [] : list.map(c => c.id))
   const restoreSelected = () => {
     if (selectedIds.length === 0) return
     selectedIds.forEach(id => updateCust(id, { archived: false }))
@@ -21,9 +30,14 @@ export default function CrmArchivedPage({ data, updateCust, setEditingCustomer }
 
   return (
     <div>
+      {/* ═══ Header ═══ */}
       <div className="crm-page-header">
         <h2>📦 已完成项</h2>
-        <span className="crm-page-count">共 {archived.length} 位客户</span>
+        <span className="crm-page-count">
+          共 {archived.length} 位
+          <span style={{ color: '#f87171', marginLeft: 6 }}>· 无效 {invalidCusts.length}</span>
+          <span style={{ color: '#4ade80', marginLeft: 6 }}>· 已完成 {doneCusts.length}</span>
+        </span>
         <div style={{ flex: 1 }} />
         {manageMode && selectedIds.length > 0 && (
           <button className="btn btn-primary btn-sm" onClick={restoreSelected}>退档选中 ({selectedIds.length})</button>
@@ -33,26 +47,48 @@ export default function CrmArchivedPage({ data, updateCust, setEditingCustomer }
         </button>
       </div>
 
+      {/* ═══ Filter bar ═══ */}
+      <div className="crm-filter-btns" style={{ marginBottom: 14 }}>
+        {[
+          ['全部', 'all'],
+          ['🚫 无效客户', 'invalid'],
+          ['✅ 已完成客户', 'done'],
+        ].map(([label, key]) => (
+          <button key={key} className={`crm-filter-btn ${filter === key ? 'active' : ''}`}
+            onClick={() => { setFilter(key as any); setSelectedIds([]) }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ═══ Table ═══ */}
       <div className="crm-table-wrap">
         <table className="crm-table">
           <thead>
             <tr>
-              {manageMode && <th style={{ width: 36, textAlign: 'center' }}><input type="checkbox" checked={archived.length > 0 && selectedIds.length === archived.length} onChange={toggleAll} /></th>}
+              {manageMode && <th style={{ width: 36, textAlign: 'center' }}><input type="checkbox" checked={list.length > 0 && selectedIds.length === list.length} onChange={toggleAll} /></th>}
+              <th style={{ width: 90 }}>分类</th>
               <th>客户</th><th>添加时间</th><th>地区</th><th>小区名称</th>
               <th>房子面积</th><th>喜欢风格</th><th>客户归属</th><th>跟进</th><th>跟进时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {archived.length === 0 && (
-              <tr><td colSpan={manageMode ? 11 : 10}><div className="crm-empty"><span>📭</span>暂无归档客户</div></td></tr>
+            {list.length === 0 && (
+              <tr><td colSpan={manageMode ? 12 : 11}><div className="crm-empty"><span>📭</span>暂无匹配的归档客户</div></td></tr>
             )}
-            {archived.map(c => {
+            {list.map(c => {
               const fu = fuDisplay(c.followUpDate || null)
               const [g1, g2] = avatarGrad(c.name)
+              const isDone = c.stage === 'closed'
               return (
-                <tr key={c.id} onClick={() => { if (manageMode) toggleSelect(c.id); else setEditingCustomer(c) }} style={{ cursor: 'pointer' }}>
+                <tr key={c.id} className={isDone ? 'row-done' : 'row-invalid'}
+                  onClick={() => { if (manageMode) toggleSelect(c.id); else setEditingCustomer(c) }} style={{ cursor: 'pointer' }}>
                   {manageMode && <td style={{ width: 36, textAlign: 'center' }} onClick={e => e.stopPropagation()}><input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggleSelect(c.id)} /></td>}
+                  <td onClick={e => e.stopPropagation()}>
+                    <span className={`crm-archive-badge ${isDone ? 'done' : 'invalid'}`}>
+                      <span className="badge-dot" />
+                      {isDone ? '已完成' : '无效'}
+                    </span>
+                  </td>
                   <td>
                     <div className="crm-td-name">
                       <div className="crm-avatar crm-avatar-sm" style={{ background: `linear-gradient(135deg,${g1},${g2})` }}>{c.name[0]}</div>

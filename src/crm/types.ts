@@ -37,14 +37,14 @@ export interface Customer {
   contractArchived?: boolean
 }
 
-// 项目管理：在做项目 / 已做项目
+// 项目管理：平面规划中 / 待约洽谈
 export interface Project {
   id: string              // 'proj_' + Date.now()
   customerId: string      // 关联客户 ID
   startDate: string       // 开始日期 YYYY-MM-DD
   estEndDate: string      // 预估完成日期 YYYY-MM-DD
-  designer: string        // 设计师（自动取客户 account）
-  completedDate: string | null  // 确认完成日期，null=进行中，有值=已做
+  designer: string        // 设计师
+  completedDate: string | null  // 确认完成日期，null=平面规划中，有值=待约洽谈
 }
 
 export interface CRMData { customers: Customer[]; projects: Project[]; designers: string[] }
@@ -73,10 +73,12 @@ export interface SharedProps {
   followUpFilter: { start: string; end: string } | null
   setFollowUpFilter: (f: { start: string; end: string } | null) => void
   // 项目管理
-  activeProjects: Project[]
-  doneProjects: Project[]
+  planningProjects: Project[]     // 平面规划中：无 completedDate
+  meetingProjects: Project[]      // 待约洽谈：有 completedDate
   addProject: (proj: Omit<Project, 'id'>) => void
   completeProject: (id: string, completedDate: string) => void
+  uncompleteProject: (id: string) => void
+  signContract: (id: string) => void
   deleteProject: (id: string) => void
   designers: string[]
   addDesigner: (name: string) => void
@@ -87,4 +89,5 @@ export interface SharedProps {
   archiveContract: (id: string) => void
   restoreContract: (id: string) => void
   restoreContracts: (ids: string[]) => void
+  rollbackContract: (id: string) => void
 }
